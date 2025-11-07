@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    /* === Output Directory === */
+    "outDir": "./dist",
+    "rootDir": "./src",
+    /* === Module Resolution === */
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "target": "ES2020",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    /* === Environment === */
+    "lib": [
+      "ES2020"
+    ],
+    "types": [
+      "node"
+    ],
+    /* === Strict Type Checking === */
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "noImplicitAny": false,
+    /* === Source Mapping for Debugging === */
+    "sourceMap": true,
+    /* === Module Syntax === */
+    "resolveJsonModule": true,
+    "allowJs": false,
+    "isolatedModules": true
+  },
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}
