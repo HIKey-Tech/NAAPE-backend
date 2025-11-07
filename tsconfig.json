@@ -4,7 +4,7 @@
     "outDir": "./dist",
     "rootDir": "./src",
     /* === Module Resolution === */
-    "module": "ESNext",
+    "module": "CommonJS",
     "moduleResolution": "Node",
     "target": "ES2020",
     "esModuleInterop": true,
