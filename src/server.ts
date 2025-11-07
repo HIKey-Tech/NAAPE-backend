@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 import cors from "cors";
 import helmet from "helmet";
 import { connectDB } from "./config/db";
+import authRoutes from "./routes/auth.routes"; 
+
 
 dotenv.config();
 
@@ -16,6 +18,9 @@ app.use(helmet());
 
 //connect to database
 connectDB();
+
+//auth routes
+app.use("/api/auth", authRoutes)
 
 //test route
 app.get("/", (req: Request, res: Response) => {
