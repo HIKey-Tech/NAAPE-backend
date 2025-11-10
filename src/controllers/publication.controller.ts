@@ -5,13 +5,15 @@ import { request } from "http";
 //Create new publication (Member)
 export const createPublication = async (req: Request, res: Response) => {
     try {
-        const { title, content, category } = req.body;
+        const { title, content, category, image: imageUrl } = req.body;
         const authorId = (req as any).user?.id;
+        const image = (req as any).file?.path || imageUrl || null;
 
         const publication = await Publication.create({
             title,
             content,
             category,
+            image,
             author: authorId,
         });
         res.status(201).json({

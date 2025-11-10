@@ -4,6 +4,7 @@ export interface IPublication extends Document {
     title: string;
     content: string;
     category: string;
+    image?: string;
     author: mongoose.Schema.Types.ObjectId;
     status: "pending" | "approved" | "rejected";
     createAt: Date;
@@ -26,6 +27,7 @@ const publicationSchema = new Schema<IPublication>(
             enum: ["Engineering", "Pilot", "News", "General"],
             default: "General"
         },
+        image: {type: String},
         author: {
             type: Schema.Types.ObjectId,
             ref: "User",
