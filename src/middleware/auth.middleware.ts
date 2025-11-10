@@ -40,7 +40,11 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
         }
 
         //Attach user to request (the missing piece!)
-        req.user = user;
+        (req as any).user = user;
+
+        console.log("Decoded token:", decoded);
+        console.log("User found:", user?._id);
+
 
         //Proceed to next handler
         next();

@@ -1,5 +1,5 @@
 import express from "express";
-import { createPublication, getApprovedPublications, approvedPublication, rejectPublication } from "../controllers/publication.controller";
+import { createPublication, getApprovedPublications, approvedPublication, rejectPublication, getMyPublications } from "../controllers/publication.controller";
 import { protect } from "../middleware/auth.middleware";
 import { authorizeRoles } from "../middleware/role.middleware";
 import upload from "../config/multer";
@@ -10,6 +10,13 @@ const router = express.Router();
 //Public route
 router.get("/", getApprovedPublications);
 
+//Protected route for logged-in users
+router.get(
+    "/my",
+    protect,
+    authorizeRoles("member", "editor", "admin"),
+    getMyPublications
+)
 //Protected (Members)
 router.post("/",
     protect,

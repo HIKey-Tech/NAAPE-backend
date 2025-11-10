@@ -73,3 +73,26 @@ export const rejectPublication = async (req: Request, res: Response) => {
 
     }
 }
+
+//Fetch publications create by the logged-in user
+export const getMyPublications = async (req: Request, res: Response) => {
+    try {
+        const authorId = (res as any).user?.id;
+        if (!req.user?._id) {
+            return res.status(401).json({ message: "Unathorized: No  user ID found" })
+        }
+
+        const publications = await Publication.find({ author: req.user._id })
+            .sort({ createdAt: -1 })
+            .select("title category status image createdAt updatedAt");
+
+        res.status(200).json({
+            message: "My publications fetched successfully",
+            count: publications.length,
+            data: publications,
+        })
+    } catch (error: any) {
+        res.status(500).json({ message: error.message })
+
+    }
+}

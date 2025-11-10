@@ -2,6 +2,10 @@
   "compilerOptions": {
     /* === Output Directory === */
     "outDir": "./dist",
+    "typeRoots": [
+      "./src/types",
+      "./node_modules/@types"
+    ],
     "rootDir": "./src",
     /* === Module Resolution === */
     "module": "CommonJS",
