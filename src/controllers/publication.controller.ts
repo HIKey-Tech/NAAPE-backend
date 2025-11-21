@@ -26,18 +26,50 @@ export const createPublication = async (req: Request, res: Response) => {
 };
 
 //Fetch all approved publications (Public)
-export const getApprovedPublications = async (req: Request, res: Response) => {
+export const getAllPublications = async (req: Request, res: Response) => {
     try {
-        const publications = await Publication.find({ status: "approved" }).populate(
-            "author", "name email"
+        const { status } = req.query;
+
+        const filter: any = {};
+
+        // Only apply status filter if provided AND valid
+        if (status && ["pending", "approved", "rejected"].includes(status as string)) {
+            filter.status = status;
+        }
+
+        const publications = await Publication.find(filter).populate(
+            "author", "name email role"
         );
 
-        res.status(200).json(publications);
+        res.status(200).json({
+            message: "All publications fetched successfully",
+            count: publications.length,
+            data: publications,
+        });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
 
     }
 };
+
+// // Fetch ALL publications (Admin Only)
+// export const getAllPublications = async (req: Request, res: Response) => {
+//     try {
+//         const publications = await Publication.find()
+//             .populate("author", "name email role")
+//             .sort({ createdAt: -1 });
+
+//         res.status(200).json({
+//             message: "All publications fetched successfully",
+//             count: publications.length,
+//             data: publications,
+//         });
+
+//     } catch (error: any) {
+//         res.status(500).json({ message: error.message });
+//     }
+// };
+
 
 //Admin or Editor approves publication
 export const approvedPublication = async (req: Request, res: Response) => {
