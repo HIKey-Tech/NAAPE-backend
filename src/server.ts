@@ -6,6 +6,12 @@ import { connectDB } from "./config/db";
 import authRoutes from "./routes/auth.routes";
 import userRoutes from "./routes/user.routes"
 import publicationRoutes from "./routes/publication.routes"
+import statsRoutes from "./routes/stats.routes";
+import membersRoutes from "./routes/members.stats";
+import commentRoutes from "./routes/comment.routes";
+
+
+
 
 
 dotenv.config();
@@ -32,6 +38,17 @@ app.use("/api/publications", publicationRoutes)
 app.get("/", (req: Request, res: Response) => {
     res.send("Welcome to NAAPE API");
 });
+
+//admin stats route
+app.use("/api/stats", statsRoutes);
+
+//member stats route
+app.use("/api/member-dashboard", membersRoutes);
+
+//users comment route
+app.use("/api/comments", commentRoutes);
+
+
 
 //listen to port
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
