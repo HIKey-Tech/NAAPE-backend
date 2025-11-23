@@ -10,8 +10,7 @@ import statsRoutes from "./routes/stats.routes";
 import membersRoutes from "./routes/members.stats";
 import commentRoutes from "./routes/comment.routes";
 import notificationRoutes from "./routes/notification.routes";
-
-
+import newsRoutes from "./routes/news.routes";
 
 
 
@@ -52,6 +51,9 @@ app.use("/api/comments", commentRoutes);
 
 //notification route
 app.use("/api/notifications", notificationRoutes);
+
+//news route
+app.use("/api/news", newsRoutes);
 
 
 
