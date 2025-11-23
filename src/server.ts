@@ -9,6 +9,8 @@ import publicationRoutes from "./routes/publication.routes"
 import statsRoutes from "./routes/stats.routes";
 import membersRoutes from "./routes/members.stats";
 import commentRoutes from "./routes/comment.routes";
+import notificationRoutes from "./routes/notification.routes";
+
 
 
 
@@ -47,6 +49,10 @@ app.use("/api/member-dashboard", membersRoutes);
 
 //users comment route
 app.use("/api/comments", commentRoutes);
+
+//notification route
+app.use("/api/notifications", notificationRoutes);
+
 
 
 

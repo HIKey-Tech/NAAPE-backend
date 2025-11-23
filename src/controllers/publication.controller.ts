@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import Publication from "../models/Publication"
 import { request } from "http";
+import Notification from "../models/Notification";
+
 
 //Create new publication (Member)
 export const createPublication = async (req: Request, res: Response) => {
@@ -33,7 +35,7 @@ export const getAllPublications = async (req: Request, res: Response) => {
         const filter: any = {};
 
         // Only apply status filter if provided AND valid
-        if (status && ["pending", "approved", "rejected"].includes(status as string)) {
+        if (status && ["approved"].includes(status as string)) {
             filter.status = status;
         }
 
@@ -82,6 +84,15 @@ export const approvedPublication = async (req: Request, res: Response) => {
         );
 
         if (!publication) return res.status(404).json({ message: "Not found" });
+
+
+        await Notification.create({
+            user: publication.author,
+            title: "Publication Approved",
+            message: `"${publication.title}" has been approved by NAAPE admins.`,
+            type: "publication",
+        });
+
         res.status(200).json({ message: "Publication approved", publication })
     } catch (error: any) {
         res.status(500).json({ message: error.message })
@@ -99,6 +110,14 @@ export const rejectPublication = async (req: Request, res: Response) => {
         );
 
         if (!publication) return res.status(404).json({ message: "Not found" });
+
+        await Notification.create({
+            user: publication.author,
+            title: "Publication Rejected",
+            message: `"${publication.title}" has been rejected by NAAPE admins.`,
+            type: "publication",
+        });
+
         res.status(200).json({ message: "Publication rejected", publication })
     } catch (error: any) {
         res.status(500).json({ message: error.message })
@@ -109,24 +128,33 @@ export const rejectPublication = async (req: Request, res: Response) => {
 //Fetch publications create by the logged-in user
 export const getMyPublications = async (req: Request, res: Response) => {
     try {
-        const authorId = (res as any).user?.id;
+        const userId = req.user?._id;
 
-        if (!authorId) {
-            return res.status(401).json({ message: "Unauthorized: No user ID found" });
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized: User not authenticated" });
         }
 
-       
-        const publications = await Publication.find({ author: authorId })
-            .sort({ createdAt: -1 })
-            .select("title category status image createdAt updatedAt");
+        const { status } = req.query;
+        const allowedStatuses = ["pending", "approved", "rejected"];
+        const filter: Record<string, any> = { author: userId };
 
-        res.status(200).json({
-            message: "My publications fetched successfully",
+        if (typeof status === "string" && allowedStatuses.includes(status)) {
+            filter.status = status;
+        }
+
+        const publications = await Publication.find(filter)
+            .populate("author", "name email role")
+            .sort({ createdAt: -1 })
+            .select("title category status image createdAt updatedAt content");
+
+        return res.status(200).json({
+            message: "Successfully fetched your publications",
             count: publications.length,
             data: publications,
-        })
-    } catch (error: any) {
-        res.status(500).json({ message: error.message })
+        });
 
+    } catch (error: any) {
+        console.error("Error fetching user's publications:", error);
+        return res.status(500).json({ message: "An error occurred while fetching your publications", error: error.message });
     }
-}
+};
