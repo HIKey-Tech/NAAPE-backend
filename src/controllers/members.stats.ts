@@ -3,7 +3,8 @@ import Publication from "../models/Publication";
 
 export const getMemberDashboardStats = async (req: Request, res: Response) => {
     try {
-        const userId = (req as any).user?.id;
+        const userId = (req as any).user?.id?.toString();
+
 
         if (!userId) {
             return res.status(401).json({ message: "Unauthorized: No user ID found" });
