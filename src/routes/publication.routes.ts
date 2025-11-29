@@ -1,8 +1,8 @@
 import express from "express";
-import { createPublication,  approvedPublication, rejectPublication, getMyPublications, getAllPublications } from "../controllers/publication.controller";
+import { createPublication, approvedPublication, rejectPublication, getMyPublications, getAllPublications } from "../controllers/publication.controller";
 import { protect } from "../middleware/auth.middleware";
 import { authorizeRoles } from "../middleware/role.middleware";
-import upload from "../config/multer";
+import { upload } from "../config/multer";
 
 const router = express.Router();
 
@@ -17,19 +17,19 @@ router.get(
     getMyPublications
 )
 //Protected (Members)
-router.post("/",
+router.post(
+    "/",
     protect,
     authorizeRoles("admin", "editor", "member"),
-    (res, req, next) => {
-        const contentType = req.header["content-type"] || "";
+    (req, res, next) => {
+        const contentType = req.headers["content-type"] || "";
         if (contentType.startsWith("multipart/form-data")) {
             upload.single("image")(req, res, next);
-
         } else {
-            next()
+            next();
         }
     },
-    createPublication,
+    createPublication
 );
 
 //Protected (Admin/Editor)

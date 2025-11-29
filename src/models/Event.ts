@@ -18,7 +18,7 @@ const EventSchema = new Schema(
         imageUrl: { type: String },
         description: { type: String },
 
-        createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+        createdBy: { type: Schema.Types.ObjectId, ref: "User", required: false },
 
         registeredUsers: [
             {
