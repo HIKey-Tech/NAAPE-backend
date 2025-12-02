@@ -12,6 +12,8 @@ import commentRoutes from "./routes/comment.routes";
 import notificationRoutes from "./routes/notification.routes";
 import newsRoutes from "./routes/news.routes";
 import eventRoutes from "./routes/events.routes"
+import paymentRoutes from "./routes/payment.routes";
+
 
 
 
@@ -62,6 +64,10 @@ app.use("/api/news", newsRoutes);
 
 //events route
 app.use("/api/events", eventRoutes);
+
+//payment route
+app.use("/api/payments", paymentRoutes);
+
 
 
 
