@@ -103,6 +103,39 @@ export const registerEventPayment = async (req, res) => {
     }
 };
 
+export const handleFlutterwaveWebhook = async (req, res) => {
+    const hash = req.headers["verif-hash"];
+    if (hash !== process.env.FLW_WEBHOOK_SECRET) {
+        return res.status(401).json({ message: "Invalid webhook hash" });
+    }
+
+    const event = req.body;
+
+    if (event.status === "successful") {
+        const { eventId, userId } = event.data.meta;
+
+        const ev = await Event.findById(eventId);
+        if (!ev) return res.status(404).json({ message: "Event not found" });
+
+        ev.payments.push({
+            user: userId,
+            transactionId: event.data.id,
+            amount: event.data.amount,
+            status: "successful",
+            date: new Date(),
+        });
+
+        if (!ev.registeredUsers.includes(userId)) {
+            ev.registeredUsers.push(userId);
+        }
+
+        await ev.save();
+    }
+
+    return res.status(200).json({ status: "ok" });
+};
+
+
 
 export const registerForEvent = async (req, res) => {
     try {

@@ -6,6 +6,7 @@ import {
     createEvent,
     getAllEvents,
     getSingleEvent,
+    handleFlutterwaveWebhook,
     registerEventPayment,
     registerForEvent,
 } from "../controllers/event.controller";
