@@ -3,16 +3,16 @@ import dotenv from "dotenv";
 import cors from "cors";
 import helmet from "helmet";
 import { connectDB } from "./config/db";
-import authRoutes from "./routes/auth.routes";
-import userRoutes from "./routes/user.routes"
-import publicationRoutes from "./routes/publication.routes"
-import statsRoutes from "./routes/stats.routes";
-import membersRoutes from "./routes/members.stats";
-import commentRoutes from "./routes/comment.routes";
-import notificationRoutes from "./routes/notification.routes";
-import newsRoutes from "./routes/news.routes";
-import eventRoutes from "./routes/events.routes"
-import paymentRoutes from "./routes/payment.routes";
+import authRoutes from "./routes/v1/auth.routes";
+import userRoutes from "./routes/v1/user.routes"
+import publicationRoutes from "./routes/v1/publication.routes"
+import statsRoutes from "./routes/v1/stats.routes";
+import membersRoutes from "./routes/v1/members.stats";
+import commentRoutes from "./routes/v1/comment.routes";
+import notificationRoutes from "./routes/v1/notification.routes";
+import newsRoutes from "./routes/v1/news.routes";
+import eventRoutes from "./routes/v1/events.routes"
+import paymentRoutes from "./routes/v1/payment.routes";
 
 // === Rate Limiting Middleware Setup ===
 import { apiLimiter, authLimiter } from "./utils/rate.limiting";
@@ -34,11 +34,11 @@ app.use(apiLimiter);
 connectDB();
 
 //auth route (add stricter auth limiter for login routes)
-app.use("/api/auth", authLimiter, authRoutes);
-app.use("/api/users", userRoutes)
+app.use("/api/v1/auth", authLimiter, authRoutes);
+app.use("/api/v1/users", userRoutes)
 
 //publication route
-app.use("/api/publications", publicationRoutes)
+app.use("/api/v1/publications", publicationRoutes)
 
 //test route
 app.get("/", (req: Request, res: Response) => {
@@ -46,25 +46,25 @@ app.get("/", (req: Request, res: Response) => {
 });
 
 //admin stats route
-app.use("/api/stats", statsRoutes);
+app.use("/api/v1/stats", statsRoutes);
 
 //member stats route
-app.use("/api/member-dashboard", membersRoutes);
+app.use("/api/v1/member-dashboard", membersRoutes);
 
 //users comment route
-app.use("/api/comments", commentRoutes);
+app.use("/api/v1/comments", commentRoutes);
 
 //notification route
-app.use("/api/notifications", notificationRoutes);
+app.use("/api/v1/notifications", notificationRoutes);
 
 //news route
-app.use("/api/news", apiLimiter, newsRoutes);
+app.use("/api/v1/news", apiLimiter, newsRoutes);
 
 //events route
-app.use("/api/events", apiLimiter, eventRoutes);
+app.use("/api/v1/events", apiLimiter, eventRoutes);
 
 //payment route
-app.use("/api/payments", apiLimiter, paymentRoutes);
+app.use("/api/v1/payments", apiLimiter, paymentRoutes);
 
 //listen to port
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));

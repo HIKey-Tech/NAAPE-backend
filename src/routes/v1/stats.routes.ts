@@ -1,7 +1,7 @@
 import express from "express";
-import { getAdminStats } from "../controllers/stats.controller";
-import { protect } from "../middleware/auth.middleware";
-import { authorizeRoles } from "../middleware/role.middleware";
+import { getAdminStats } from "../../controllers/stats.controller";
+import { protect } from "../../middleware/auth.middleware";
+import { authorizeRoles } from "../../middleware/role.middleware";
 
 const router = express.Router();
 

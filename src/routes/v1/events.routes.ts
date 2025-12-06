@@ -1,14 +1,14 @@
 import express from "express";
-import { protect } from "../middleware/auth.middleware";
-import { authorizeRoles } from "../middleware/role.middleware";
+import { protect } from "../../middleware/auth.middleware";
+import { authorizeRoles } from "../../middleware/role.middleware";
 
 import {
     createEvent,
     getAllEvents,
     getSingleEvent,
-    
-} from "../controllers/event.controller";
-import { upload } from "../config/multer";
+
+} from "../../controllers/event.controller";
+import { upload } from "../../config/multer";
 
 const router = express.Router();
 

@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { protect } from "../middleware/auth.middleware";
+import { protect } from "../../middleware/auth.middleware";
 import {
     addComment,
     getComments,
     deleteComment,
-} from "../controllers/comment.controller";
+} from "../../controllers/comment.controller";
 
 const router = Router();
 

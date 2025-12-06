@@ -1,8 +1,8 @@
 import express from "express";
-import { createPublication, approvedPublication, rejectPublication, getMyPublications, getAllPublications } from "../controllers/publication.controller";
-import { protect } from "../middleware/auth.middleware";
-import { authorizeRoles } from "../middleware/role.middleware";
-import { upload } from "../config/multer";
+import { createPublication, approvedPublication, rejectPublication, getMyPublications, getAllPublications } from "../../controllers/publication.controller";
+import { protect } from "../../middleware/auth.middleware";
+import { authorizeRoles } from "../../middleware/role.middleware";
+import { upload } from "../../config/multer";
 
 const router = express.Router();
 
