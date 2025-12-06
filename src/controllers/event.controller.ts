@@ -1,6 +1,8 @@
 import Event from "../models/Event";
 import Notification from "../models/Notification";
-import Flutterwave from "flutterwave-node-v3";
+import { flw } from "../utils/flw.client";
+import { Request, Response } from "express";
+import { Types } from "mongoose";
 
 
 export const createEvent = async (req, res) => {
@@ -55,10 +57,8 @@ export const getSingleEvent = async (req, res) => {
     }
 };
 
-const flw = new Flutterwave(
-    process.env.FLW_PUBLIC_KEY,
-    process.env.FLW_SECRET_KEY
-);
+
+
 
 export const registerEventPayment = async (req, res) => {
     try {
@@ -68,7 +68,7 @@ export const registerEventPayment = async (req, res) => {
         const event = await Event.findById(eventId);
         if (!event) return res.status(404).json({ message: "Event not found" });
 
-        // If free → register instantly
+        // If free, register instantly
         if (!event.isPaid || event.price === 0) {
             if (!event.registeredUsers.includes(userId)) {
                 event.registeredUsers.push(userId);
@@ -77,6 +77,7 @@ export const registerEventPayment = async (req, res) => {
             return res.status(200).json({ message: "Registered (Free Event)" });
         }
 
+        //create payment link
         const payload = {
             tx_ref: `EVT-${eventId}-${Date.now()}`,
             amount: event.price,
@@ -92,71 +93,101 @@ export const registerEventPayment = async (req, res) => {
             }
         };
 
-        const response = await flw.Payment.initialize(payload);
+        // Store pending registration
+        // await EventRegistration.create({
+        //     eventId,
+        //     userName,
+        //     email,
+        //     amountPaid: amount,
+        //     tx_ref,
+        //     status: "pending",
+        // });
+
+        // Use flw client directly to hit /payments endpoint
+        const response = await flw.post("/payments", payload);
 
         return res.status(200).json({
-            checkoutUrl: response.data.link
+            link: response.data.data.link,
+            tx_ref: response.data.data.tx_ref
         });
 
     } catch (error: any) {
-        return res.status(500).json({ message: error.message });
+        const message =
+            (error?.response && error.response.data && error.response.data.message) ||
+            error?.message ||
+            "Payment initiation failed";
+        return res.status(500).json({ message });
     }
-};
+}
 
-export const handleFlutterwaveWebhook = async (req, res) => {
-    const hash = req.headers["verif-hash"];
-    if (hash !== process.env.FLW_WEBHOOK_SECRET) {
-        return res.status(401).json({ message: "Invalid webhook hash" });
-    }
 
-    const event = req.body;
-
-    if (event.status === "successful") {
-        const { eventId, userId } = event.data.meta;
-
-        const ev = await Event.findById(eventId);
-        if (!ev) return res.status(404).json({ message: "Event not found" });
-
-        ev.payments.push({
-            user: userId,
-            transactionId: event.data.id,
-            amount: event.data.amount,
-            status: "successful",
-            date: new Date(),
-        });
-
-        if (!ev.registeredUsers.includes(userId)) {
-            ev.registeredUsers.push(userId);
+export const verifyEventPayment = async (req: Request, res: Response) => {
+    try {
+        const transaction_id = req.query.transaction_id as string | undefined;
+        if (!transaction_id) {
+            return res.status(400).json({ message: "Missing transaction_id in query" });
         }
 
-        await ev.save();
-    }
+        // Call flutterwave API to verify transaction
+        const verificationRes = await flw.get(`/transactions/${transaction_id}/verify`);
+        const data = verificationRes?.data?.data;
 
-    return res.status(200).json({ status: "ok" });
-};
+        if (!data) {
+            return res.status(502).json({ message: "Could not verify transaction" });
+        }
 
+        if (data.status !== "successful") {
+            return res.status(400).json({ message: "Payment not successful", data });
+        }
 
+        // Make sure eventId and userId exist in metadata and are valid
+        const eventId = data.meta?.eventId;
+        const userId = data.meta?.userId;
+        if (!eventId || !userId) {
+            return res.status(400).json({ message: "Event or user metadata missing from transaction" });
+        }
 
-export const registerForEvent = async (req, res) => {
-    try {
-        const eventId = req.params.id;
-        const userId = req.user.id;
-
+        // Find event and check registration/payment state
         const event = await Event.findById(eventId);
+        if (!event) {
+            return res.status(404).json({ message: "Event not found" });
+        }
 
-        if (!event) return res.status(404).json({ message: "Event not found" });
+        // Ensure ObjectId type for matching
+        const userObjectId = typeof userId === "string" ? new Types.ObjectId(userId) : userId;
 
         // Prevent duplicate registration
-        if (event.registeredUsers.includes(userId)) {
-            return res.status(400).json({ message: "You already registered" });
+        if (!event.registeredUsers.some((u) => u.equals(userObjectId))) {
+            event.registeredUsers.push(userObjectId);
         }
 
-        event.registeredUsers.push(userId);
+        // Prevent duplicate payment records
+        const paymentExists = event.payments.some(
+            (p) => String(p.transactionId) === String(data.id)
+        );
+        if (!paymentExists) {
+            event.payments.push({
+                user: userObjectId,
+                transactionId: data.id,
+                amount: data.amount,
+                status: data.status,
+                date: data.completed_at ? new Date(data.completed_at) : new Date()
+            });
+        }
+
+        // Only mark as paid if this is a paid event
+        if (event.isPaid !== true) {
+            event.isPaid = true;
+        }
+
         await event.save();
 
-        res.status(200).json({ message: "Registration successful", event });
+        return res.status(200).json({
+            message: "Payment verified & registration complete",
+            event,
+        });
     } catch (error: any) {
-        res.status(500).json({ message: error.message });
+        console.error("Payment verification error:", error?.response?.data || error?.message || error);
+        return res.status(500).json({ error: "Payment verification failed" });
     }
 };
-

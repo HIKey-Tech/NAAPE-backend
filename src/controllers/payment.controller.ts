@@ -12,7 +12,7 @@ export const createPayment = async (req: Request, res: Response) => {
             tx_ref,
             amount,
             currency: "NGN",
-            redirect_url: "https://yourfrontend.com/payment/callback",
+            redirect_url: `${process.env.FRONTEND_URL}/payment/success`,
             customer: {
                 email,
                 name
@@ -46,3 +46,5 @@ export const createPayment = async (req: Request, res: Response) => {
         });
     }
 };
+
+
