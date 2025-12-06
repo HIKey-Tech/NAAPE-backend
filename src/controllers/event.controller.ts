@@ -1,8 +1,10 @@
 import Event from "../models/Event";
 import Notification from "../models/Notification";
+import PaymentHistory from "../models/PaymentHistory";
 import { flw } from "../utils/flw.client";
 import { Request, Response } from "express";
 import { Types } from "mongoose";
+import { savePaymentHistory } from "../utils/savePaymentHistory";
 
 
 export const createEvent = async (req, res) => {
@@ -181,6 +183,18 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
         }
 
         await event.save();
+
+        await savePaymentHistory(
+            data.customer.id,
+            "event",
+            data.id,
+            data.amount,
+            data.currency,
+            data.status,
+            { eventId }
+        );
+
+
 
         return res.status(200).json({
             message: "Payment verified & registration complete",
