@@ -14,29 +14,27 @@ import newsRoutes from "./routes/news.routes";
 import eventRoutes from "./routes/events.routes"
 import paymentRoutes from "./routes/payment.routes";
 
-
-
-
+// === Rate Limiting Middleware Setup ===
+import { apiLimiter, authLimiter } from "./utils/rate.limiting";
 
 dotenv.config();
 
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
 
-
-
-
-//Middleware
+// Middleware
 app.use(express.json());
 app.use(cors());
-
 app.use(helmet());
+
+// Apply rate limiting globally (for all requests)
+app.use(apiLimiter);
 
 //connect to database
 connectDB();
 
-//auth route
-app.use("/api/auth", authRoutes)
+//auth route (add stricter auth limiter for login routes)
+app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/users", userRoutes)
 
 //publication route
@@ -60,18 +58,13 @@ app.use("/api/comments", commentRoutes);
 app.use("/api/notifications", notificationRoutes);
 
 //news route
-app.use("/api/news", newsRoutes);
+app.use("/api/news", apiLimiter, newsRoutes);
 
 //events route
-app.use("/api/events", eventRoutes);
+app.use("/api/events", apiLimiter, eventRoutes);
 
 //payment route
-app.use("/api/payments", paymentRoutes);
-
-
-
-
-
+app.use("/api/payments", apiLimiter, paymentRoutes);
 
 //listen to port
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
