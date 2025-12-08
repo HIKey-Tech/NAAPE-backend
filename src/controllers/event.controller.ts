@@ -49,7 +49,7 @@ export const createEvent = async (req, res) => {
             event
         });
 
-    } catch (error) {
+    } catch (error: any) {
         res.status(500).json({ message: error.message });
     }
 };
