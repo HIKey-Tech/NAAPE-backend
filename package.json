@@ -26,7 +26,8 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.3",
     "multer": "^2.0.2",
-    "multer-storage-cloudinary": "^4.0.0"
+    "multer-storage-cloudinary": "^4.0.0",
+    "openai": "^6.10.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",

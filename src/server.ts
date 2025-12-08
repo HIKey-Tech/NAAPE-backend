@@ -13,6 +13,7 @@ import notificationRoutes from "./routes/v1/notification.routes";
 import newsRoutes from "./routes/v1/news.routes";
 import eventRoutes from "./routes/v1/events.routes"
 import paymentRoutes from "./routes/v1/payment.routes";
+import titleRoutes from "./routes/v1/ai.title";
 
 // === Rate Limiting Middleware Setup ===
 import { apiLimiter, authLimiter } from "./utils/rate.limiting";
@@ -65,6 +66,9 @@ app.use("/api/v1/events", apiLimiter, eventRoutes);
 
 //payment route
 app.use("/api/v1/payments", apiLimiter, paymentRoutes);
+
+
+app.use("/api", titleRoutes);
 
 //listen to port
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
