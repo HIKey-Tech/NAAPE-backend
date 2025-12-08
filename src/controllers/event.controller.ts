@@ -9,9 +9,21 @@ import { savePaymentHistory } from "../utils/savePaymentHistory";
 
 export const createEvent = async (req, res) => {
     try {
-        const { title, date, location, currency, image: imageUrl, description, isPaid, price } = req.body;
+        // TEXT FIELDS from multipart/form-data
+        const {
+            title,
+            date,
+            location,
+            currency,
+            description,
+            isPaid,
+            price
+        } = req.body;
+
+        // IMAGE FILE OR FALLBACK URL
+        const image = req.file ? req.file.path : req.body.image || null;
+
         const adminId = req.user.id;
-        const image = (req as any).file?.path || imageUrl || null
 
         const event = await Event.create({
             title,
@@ -21,10 +33,10 @@ export const createEvent = async (req, res) => {
             currency,
             description,
             createdBy: adminId,
-            isPaid, price
+            isPaid,
+            price
         });
 
-        // Send notification to all users (system-wide notification)
         await Notification.create({
             title: "New Event Created",
             message: `${title} - happening on ${date}.`,
@@ -32,11 +44,16 @@ export const createEvent = async (req, res) => {
             user: null,
         });
 
-        res.status(201).json({ message: "Event created successfully", event });
-    } catch (error: any) {
+        res.status(201).json({
+            message: "Event created successfully",
+            event
+        });
+
+    } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
+
 
 export const getAllEvents = async (req, res) => {
     try {
@@ -62,16 +79,30 @@ export const getSingleEvent = async (req, res) => {
 
 
 
+// Accept both authed user and guest for event payment checkout link creation
 export const registerEventPayment = async (req, res) => {
     try {
         const eventId = req.params.id;
-        const userId = req.user.id;
+        // Guest: req.body.email and req.body.name required if no req.user
+        const guestMode = !req.user;
+        let userId, email, name;
+        if (!guestMode) {
+            userId = req.user.id;
+            email = req.user.email;
+            name = req.user.name;
+        } else {
+            email = req.body.email;
+            name = req.body.name;
+        }
 
         const event = await Event.findById(eventId);
         if (!event) return res.status(404).json({ message: "Event not found" });
 
-        // If free, register instantly
+        // Free events: allow only registered users (authed, not guest) to join instantly
         if (!event.isPaid || event.price === 0) {
+            if (guestMode) {
+                return res.status(400).json({ message: "Guests can't register for free events. Please sign up." });
+            }
             if (!event.registeredUsers.includes(userId)) {
                 event.registeredUsers.push(userId);
                 await event.save();
@@ -79,31 +110,22 @@ export const registerEventPayment = async (req, res) => {
             return res.status(200).json({ message: "Registered (Free Event)" });
         }
 
-        //create payment link
+        // Paid event: create payment link for both user and guest
+        const tx_ref = `EVT-${eventId}-${Date.now()}`;
         const payload = {
-            tx_ref: `EVT-${eventId}-${Date.now()}`,
+            tx_ref,
             amount: event.price,
             currency: event.currency,
             redirect_url: `${process.env.FRONTEND_URL}/events/${eventId}/payment-complete`,
             customer: {
-                email: req.user.email,
-                name: req.user.name,
+                email, name
             },
             meta: {
                 eventId,
-                userId
+                userId: userId || null,
+                guest: guestMode ? { name, email } : null 
             }
         };
-
-        // Store pending registration
-        // await EventRegistration.create({
-        //     eventId,
-        //     userName,
-        //     email,
-        //     amountPaid: amount,
-        //     tx_ref,
-        //     status: "pending",
-        // });
 
         // Use flw client directly to hit /payments endpoint
         const response = await flw.post("/payments", payload);
@@ -122,7 +144,7 @@ export const registerEventPayment = async (req, res) => {
     }
 }
 
-
+// Update verifyEventPayment to handle guest registration & payment record using Event.ts guest fields
 export const verifyEventPayment = async (req: Request, res: Response) => {
     try {
         const transaction_id = req.query.transaction_id as string | undefined;
@@ -142,11 +164,12 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
             return res.status(400).json({ message: "Payment not successful", data });
         }
 
-        // Make sure eventId and userId exist in metadata and are valid
+        // eventId always in meta. userId (for authed) or guest (for guest) present
         const eventId = data.meta?.eventId;
-        const userId = data.meta?.userId;
-        if (!eventId || !userId) {
-            return res.status(400).json({ message: "Event or user metadata missing from transaction" });
+        const userId = data.meta?.userId || undefined;
+        const guestInfo = data.meta?.guest || undefined;
+        if (!eventId || (!userId && !guestInfo)) {
+            return res.status(400).json({ message: "Event or payer metadata missing from transaction" });
         }
 
         // Find event and check registration/payment state
@@ -155,26 +178,48 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
             return res.status(404).json({ message: "Event not found" });
         }
 
-        // Ensure ObjectId type for matching
-        const userObjectId = typeof userId === "string" ? new Types.ObjectId(userId) : userId;
-
-        // Prevent duplicate registration
-        if (!event.registeredUsers.some((u) => u.equals(userObjectId))) {
-            event.registeredUsers.push(userObjectId);
-        }
-
-        // Prevent duplicate payment records
-        const paymentExists = event.payments.some(
+        let paymentExists = event.payments.some(
             (p) => String(p.transactionId) === String(data.id)
         );
-        if (!paymentExists) {
-            event.payments.push({
-                user: userObjectId,
-                transactionId: data.id,
-                amount: data.amount,
-                status: data.status,
-                date: data.completed_at ? new Date(data.completed_at) : new Date()
-            });
+
+        // Register user or guest IF not already registered
+        if (userId) {
+            // User registration (ObjectId for matching)
+            const userObjectId = typeof userId === "string" ? new Types.ObjectId(userId) : userId;
+            if (!event.registeredUsers.some((u) => u.equals(userObjectId))) {
+                event.registeredUsers.push(userObjectId);
+            }
+
+            // Payment record for user
+            if (!paymentExists) {
+                event.payments.push({
+                    user: userObjectId,
+                    transactionId: data.id,
+                    amount: data.amount,
+                    status: data.status,
+                    date: data.completed_at ? new Date(data.completed_at) : new Date()
+                });
+            }
+        } else if (guestInfo) {
+            // Guest registration (do not push to registeredUsers array!)
+            // Payment record for guest
+            const guestAlreadyPaid = event.payments.some(
+                (p) =>
+                    p.guest?.email === guestInfo.email &&
+                    p.transactionId === data.id
+            );
+            if (!guestAlreadyPaid && !paymentExists) {
+                event.payments.push({
+                    guest: {
+                        name: guestInfo.name,
+                        email: guestInfo.email
+                    },
+                    transactionId: data.id,
+                    amount: data.amount,
+                    status: data.status,
+                    date: data.completed_at ? new Date(data.completed_at) : new Date()
+                });
+            }
         }
 
         // Only mark as paid if this is a paid event
@@ -184,17 +229,19 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
 
         await event.save();
 
+        // Save payment history
         await savePaymentHistory(
-            data.customer.id,
+            (userId ? data.customer.id : guestInfo?.email),
             "event",
             data.id,
             data.amount,
             data.currency,
             data.status,
-            { eventId }
+            {
+                eventId,
+                guest: guestInfo ? { name: guestInfo.name, email: guestInfo.email } : undefined
+            }
         );
-
-
 
         return res.status(200).json({
             message: "Payment verified & registration complete",
