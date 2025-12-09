@@ -21,15 +21,19 @@ export const createEvent = async (req, res) => {
         } = req.body;
 
         // IMAGE FILE OR FALLBACK URL
-        const image = req.file ? req.file.path : req.body.image || null;
+        const imageUrl = req.file ? req.file.path : req.body.image || null;
 
         const adminId = req.user.id;
+
+        console.log("BODY:", req.body);
+        console.log("FILE:", req.file);
+        console.log("USER:", req.user);
 
         const event = await Event.create({
             title,
             date,
             location,
-            image,
+            imageUrl,
             currency,
             description,
             createdBy: adminId,
@@ -41,7 +45,7 @@ export const createEvent = async (req, res) => {
             title: "New Event Created",
             message: `${title} - happening on ${date}.`,
             type: "event",
-            user: null,
+            user: req.user._id,
         });
 
         res.status(201).json({
@@ -81,36 +85,50 @@ export const getSingleEvent = async (req, res) => {
 
 // Accept both authed user and guest for event payment checkout link creation
 export const registerEventPayment = async (req, res) => {
+
+    console.log("BODY RECEIVED:", req.body);
+
     try {
-        const eventId = req.params.id;
-        // Guest: req.body.email and req.body.name required if no req.user
-        const guestMode = !req.user;
-        let userId, email, name;
-        if (!guestMode) {
+        const { eventId } = req.body;
+
+        const isGuest = !req.user;
+        let userId: string | undefined;
+        let email: string | undefined;
+        let name: string | undefined;
+
+        if (isGuest) {
+            email = req.body.email;
+            name = req.body.name;
+        } else {
             userId = req.user.id;
             email = req.user.email;
             name = req.user.name;
-        } else {
-            email = req.body.email;
-            name = req.body.name;
         }
 
         const event = await Event.findById(eventId);
         if (!event) return res.status(404).json({ message: "Event not found" });
 
-        // Free events: allow only registered users (authed, not guest) to join instantly
+        // Free events: only authed users, no guests
         if (!event.isPaid || event.price === 0) {
-            if (guestMode) {
+            if (isGuest) {
                 return res.status(400).json({ message: "Guests can't register for free events. Please sign up." });
             }
-            if (!event.registeredUsers.includes(userId)) {
-                event.registeredUsers.push(userId);
+            // Compare using equals for ObjectId, not .includes on string
+            if (!userId) {
+                return res.status(400).json({ message: "User ID is required for registration." });
+            }
+            const userObjectId = new Types.ObjectId(userId);
+            const alreadyRegistered = event.registeredUsers.some(
+                (u) => u.equals(userObjectId)
+            );
+            if (!alreadyRegistered) {
+                event.registeredUsers.push(userObjectId);
                 await event.save();
             }
             return res.status(200).json({ message: "Registered (Free Event)" });
         }
 
-        // Paid event: create payment link for both user and guest
+        // Paid events: Payment link for user or guest.
         const tx_ref = `EVT-${eventId}-${Date.now()}`;
         const payload = {
             tx_ref,
@@ -118,16 +136,18 @@ export const registerEventPayment = async (req, res) => {
             currency: event.currency,
             redirect_url: `${process.env.FRONTEND_URL}/events/${eventId}/payment-complete`,
             customer: {
-                email, name
+                email,
+                name
             },
             meta: {
                 eventId,
                 userId: userId || null,
-                guest: guestMode ? { name, email } : null 
+                guest: isGuest
+                    ? { name: name || null, email: email || null }
+                    : null
             }
         };
 
-        // Use flw client directly to hit /payments endpoint
         const response = await flw.post("/payments", payload);
 
         return res.status(200).json({
@@ -136,8 +156,10 @@ export const registerEventPayment = async (req, res) => {
         });
 
     } catch (error: any) {
+        console.error("Flutterwave error:", error.response?.data || error);
+
         const message =
-            (error?.response && error.response.data && error.response.data.message) ||
+            (error?.response?.data?.message) ||
             error?.message ||
             "Payment initiation failed";
         return res.status(500).json({ message });
@@ -250,5 +272,35 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error("Payment verification error:", error?.response?.data || error?.message || error);
         return res.status(500).json({ error: "Payment verification failed" });
+    }
+};
+
+export const getEventPaymentStatus = async (req: Request, res: Response) => {
+    try {
+        const { eventId, email } = req.query;
+
+        if (!eventId || !email) {
+            return res.status(400).json({ message: "eventId and email are required" });
+        }
+
+        const event = await Event.findById(eventId);
+        if (!event) return res.status(404).json({ message: "Event not found" });
+
+        // Check if payment exists for this user/guest
+        const payment = event.payments.find((p) =>
+            (p.user && p.user.toString() === email) ||  // if userId stored as email (adjust if you store ObjectId)
+            (p.guest && p.guest.email === email)
+        );
+
+        if (!payment) {
+            return res.status(200).json({ paid: false, status: "not found" });
+        }
+
+        return res.status(200).json({
+            paid: payment.status === "successful",
+            status: payment.status,
+        });
+    } catch (error: any) {
+        return res.status(500).json({ message: error.message });
     }
 };

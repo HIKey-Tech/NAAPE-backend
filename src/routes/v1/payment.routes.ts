@@ -6,7 +6,7 @@ import { createPlan, createSubscription } from "../../controllers/subscription.c
 import { chargeAndTokenize, createTokenizedCharge } from "../../controllers/token.controller";
 import { createRecipient, createTransfer } from "../../controllers/transfer.controller";
 import { handleWebhook } from "../../controllers/webhook";
-import { registerEventPayment, verifyEventPayment } from "../../controllers/event.controller";
+import { getEventPaymentStatus, registerEventPayment, verifyEventPayment } from "../../controllers/event.controller";
 import { protect } from "../../middleware/auth.middleware";
 import { getPaymentHistory } from "../../controllers/payment.history.controller";
 
@@ -16,16 +16,16 @@ const router = Router();
 router.post("/create-link", createPayment);
 
 // Payment plans & subscriptions
-router.post("/plans", protect, createPlan);
+router.post("/plans",  createPlan);
 router.post("/subscription", createSubscription);
 
 // Tokenization
-router.post("/tokenize", protect, chargeAndTokenize);
-router.post("/token-charges", protect, createTokenizedCharge);
+router.post("/tokenize", chargeAndTokenize);
+router.post("/token-charges", createTokenizedCharge);
 
 // Payouts / Transfers
-router.post("/recipients", protect, createRecipient);
-router.post("/transfers", protect, createTransfer);
+router.post("/recipients", createRecipient);
+router.post("/transfers", createTransfer);
 
 //Events verify and register
 
@@ -34,6 +34,9 @@ router.get("/events/verify", protect, verifyEventPayment);
 
 //Payment History
 router.get("/history/:userId", protect, getPaymentHistory);
+// New route
+router.get("/events/status", getEventPaymentStatus);
+
 
 
 // Webhooks

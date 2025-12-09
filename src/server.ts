@@ -25,7 +25,15 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: [
+        "http://localhost:3000",
+        "https://naape-frontend.onrender.com"
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    credentials: true
+}));
+
 app.use(helmet());
 
 // Apply rate limiting globally (for all requests)
@@ -59,13 +67,13 @@ app.use("/api/v1/comments", commentRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 
 //news route
-app.use("/api/v1/news", apiLimiter, newsRoutes);
+app.use("/api/v1/news",  newsRoutes);
 
 //events route
-app.use("/api/v1/events", apiLimiter, eventRoutes);
+app.use("/api/v1/events",  eventRoutes);
 
 //payment route
-app.use("/api/v1/payments", apiLimiter, paymentRoutes);
+app.use("/api/v1/payments", paymentRoutes);
 
 
 app.use("/api", titleRoutes);
