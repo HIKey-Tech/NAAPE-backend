@@ -69,10 +69,10 @@ app.use("/api/v1/comments", commentRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 
 //news route
-app.use("/api/v1/news",  newsRoutes);
+app.use("/api/v1/news", newsRoutes);
 
 //events route
-app.use("/api/v1/events",  eventRoutes);
+app.use("/api/v1/events", eventRoutes);
 
 //payment route
 app.use("/api/v1/payments", paymentRoutes);
