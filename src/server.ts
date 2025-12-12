@@ -14,6 +14,8 @@ import newsRoutes from "./routes/v1/news.routes";
 import eventRoutes from "./routes/v1/events.routes"
 import paymentRoutes from "./routes/v1/payment.routes";
 import titleRoutes from "./routes/v1/ai.title";
+import membershipFormRoutes from "./routes/v1/membershipform.routes"
+
 
 // === Rate Limiting Middleware Setup ===
 import { apiLimiter, authLimiter } from "./utils/rate.limiting";
@@ -77,6 +79,9 @@ app.use("/api/v1/payments", paymentRoutes);
 
 
 app.use("/api", titleRoutes);
+
+//email route
+app.use("api/v1/membership-form", membershipFormRoutes)
 
 //listen to port
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
