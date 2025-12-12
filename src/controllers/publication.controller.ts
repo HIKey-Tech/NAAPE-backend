@@ -1,13 +1,12 @@
 import { Request, Response } from "express";
-import Publication from "../models/Publication"
+import Publication from "../models/Publication";
 import Notification from "../models/Notification";
 
-
-//Create new publication (Member)
+// Create new publication (Member)
 export const createPublication = async (req: Request, res: Response) => {
     try {
         const { title, content, category, image: imageUrl } = req.body;
-        const authorId = (req as any).user?.id;
+        const authorId = (req as any).user?.id || (req.user && (req.user as any)._id);
         const image = (req as any).file?.path || imageUrl || null;
 
         const publication = await Publication.create({
@@ -22,11 +21,11 @@ export const createPublication = async (req: Request, res: Response) => {
             data: publication,
         });
     } catch (error: any) {
-        res.status(500).json({ message: error.message })
+        res.status(500).json({ message: error.message });
     }
 };
 
-//Fetch all approved publications (Public)
+// Fetch all approved publications (Public)
 export const getAllPublications = async (req: Request, res: Response) => {
     try {
         const { status } = req.query;
@@ -38,9 +37,8 @@ export const getAllPublications = async (req: Request, res: Response) => {
             filter.status = status;
         }
 
-        const publications = await Publication.find(filter).populate(
-            "author", "name email role"
-        );
+        const publications = await Publication.find(filter)
+            .populate("author", "name email role");
 
         res.status(200).json({
             message: "All publications fetched successfully",
@@ -49,30 +47,10 @@ export const getAllPublications = async (req: Request, res: Response) => {
         });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
-
     }
 };
 
-// // Fetch ALL publications (Admin Only)
-// export const getAllPublications = async (req: Request, res: Response) => {
-//     try {
-//         const publications = await Publication.find()
-//             .populate("author", "name email role")
-//             .sort({ createdAt: -1 });
-
-//         res.status(200).json({
-//             message: "All publications fetched successfully",
-//             count: publications.length,
-//             data: publications,
-//         });
-
-//     } catch (error: any) {
-//         res.status(500).json({ message: error.message });
-//     }
-// };
-
-
-//Admin or Editor approves publication
+// Admin or Editor approves publication
 export const approvedPublication = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -84,7 +62,6 @@ export const approvedPublication = async (req: Request, res: Response) => {
 
         if (!publication) return res.status(404).json({ message: "Not found" });
 
-
         await Notification.create({
             user: publication.author,
             title: "Publication Approved",
@@ -92,13 +69,13 @@ export const approvedPublication = async (req: Request, res: Response) => {
             type: "publication",
         });
 
-        res.status(200).json({ message: "Publication approved", publication })
+        res.status(200).json({ message: "Publication approved", publication });
     } catch (error: any) {
-        res.status(500).json({ message: error.message })
+        res.status(500).json({ message: error.message });
     }
 };
 
-//Admin rejects publication
+// Admin rejects publication
 export const rejectPublication = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -117,17 +94,16 @@ export const rejectPublication = async (req: Request, res: Response) => {
             type: "publication",
         });
 
-        res.status(200).json({ message: "Publication rejected", publication })
+        res.status(200).json({ message: "Publication rejected", publication });
     } catch (error: any) {
-        res.status(500).json({ message: error.message })
-
+        res.status(500).json({ message: error.message });
     }
-}
+};
 
-//Fetch publications create by the logged-in user
+// Fetch publications created by the logged-in user
 export const getMyPublications = async (req: Request, res: Response) => {
     try {
-        const userId = req.user?._id;
+        const userId = (req as any).user?._id || (req.user && (req.user as any)._id);
 
         if (!userId) {
             return res.status(401).json({ message: "Unauthorized: User not authenticated" });
@@ -155,5 +131,118 @@ export const getMyPublications = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error("Error fetching user's publications:", error);
         return res.status(500).json({ message: "An error occurred while fetching your publications", error: error.message });
+    }
+};
+
+// Fetch a single publication created by the logged-in user
+export const getMyPublication = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user?._id || (req.user && (req.user as any)._id);
+        const publicationId = req.params.id;
+
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized: User not authenticated" });
+        }
+
+        if (!publicationId) {
+            return res.status(400).json({ message: "Publication ID is required" });
+        }
+
+        const publication = await Publication.findOne({ _id: publicationId, author: userId })
+            .populate("author", "name email role")
+            .select("title category status image createdAt updatedAt content");
+
+        if (!publication) {
+            return res.status(404).json({ message: "Publication not found or you do not have permission to view it" });
+        }
+
+        return res.status(200).json({
+            message: "Successfully fetched your publication",
+            data: publication,
+        });
+
+    } catch (error: any) {
+        console.error("Error fetching user's publication:", error);
+        return res.status(500).json({ message: "An error occurred while fetching your publication", error: error.message });
+    }
+};
+
+// Update my publication
+export const updateMyPublication = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user?._id || (req.user && (req.user as any)._id);
+        const publicationId = req.params.id;
+
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized: User not authenticated" });
+        }
+
+        if (!publicationId) {
+            return res.status(400).json({ message: "Publication ID is required" });
+        }
+
+        const publication = await Publication.findOne({ _id: publicationId, author: userId });
+        if (!publication) {
+            return res.status(404).json({ message: "Publication not found or you do not have permission to edit it" });
+        }
+
+        // Only allow edits when status is "pending" or "rejected"
+        if (publication.status === "approved") {
+            return res.status(403).json({ message: "Cannot edit an approved publication." });
+        }
+
+        const { title, content, category, image: imageUrl } = req.body;
+        const newImage = (req as any).file?.path || imageUrl || publication.image;
+
+        publication.title = title ?? publication.title;
+        publication.content = content ?? publication.content;
+        publication.category = category ?? publication.category;
+        publication.image = newImage;
+
+        // Reset status to pending on update
+        publication.status = "pending";
+        await publication.save();
+
+        res.status(200).json({
+            message: "Publication updated successfully and is pending approval.",
+            data: publication,
+        });
+    } catch (error: any) {
+        console.error("Error updating publication:", error);
+        return res.status(500).json({ message: "An error occurred while updating your publication", error: error.message });
+    }
+};
+
+// Delete my publication
+export const deleteMyPublication = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user?._id || (req.user && (req.user as any)._id);
+        const publicationId = req.params.id;
+
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized: User not authenticated" });
+        }
+
+        if (!publicationId) {
+            return res.status(400).json({ message: "Publication ID is required" });
+        }
+
+        const publication = await Publication.findOneAndDelete({
+            _id: publicationId,
+            author: userId,
+            status: { $ne: "approved" } // Allow deletion if NOT approved
+        });
+
+        if (!publication) {
+            return res.status(404).json({ message: "Publication not found, you do not have permission to delete it, or it has already been approved." });
+        }
+
+        return res.status(200).json({
+            message: "Publication deleted successfully.",
+            data: publication,
+        });
+    } catch (error: any) {
+        console.error("Error deleting publication:", error);
+        return res.status(500).json({ message: "An error occurred while deleting your publication", error: error.message });
     }
 };
