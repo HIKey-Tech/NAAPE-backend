@@ -134,36 +134,45 @@ export const getMyPublications = async (req: Request, res: Response) => {
     }
 };
 
-// Fetch a single publication created by the logged-in user
-export const getMyPublication = async (req: Request, res: Response) => {
+// Public: Fetch a single publication by id (everyone can view approved publications; owners can view their own pending/rejected)
+export const getSinglePublication = async (req: Request, res: Response) => {
     try {
-        const userId = (req as any).user?._id || (req.user && (req.user as any)._id);
-        const publicationId = req.params.id;
-
-        if (!userId) {
-            return res.status(401).json({ message: "Unauthorized: User not authenticated" });
-        }
-
-        if (!publicationId) {
-            return res.status(400).json({ message: "Publication ID is required" });
-        }
-
-        const publication = await Publication.findOne({ _id: publicationId, author: userId })
-            .populate("author", "name email role")
-            .select("title category status image createdAt updatedAt content");
+        const publication = await Publication.findById(req.params.id)
+            .populate("author", "name email role");
 
         if (!publication) {
-            return res.status(404).json({ message: "Publication not found or you do not have permission to view it" });
+            return res.status(404).json({ message: "Publication not found" });
         }
 
-        return res.status(200).json({
-            message: "Successfully fetched your publication",
+        // Allow owners and admins to see their unapproved publication, others only see approved
+        const userId = (req as any).user?._id || (req.user && (req.user as any)._id);
+        const userRole = (req as any).user?.role || (req.user && (req.user as any).role);
+
+        // Compare author id as string or object, avoiding ._id on ObjectId
+        let publicationAuthorId: any = publication.author;
+        if (typeof publicationAuthorId === 'object' && publicationAuthorId !== null && 'id' in publicationAuthorId) {
+            publicationAuthorId = (publicationAuthorId as any).id; // Mongoose documents have 'id' getter
+        }
+
+        if (publication.status !== "approved") {
+            // If not public, allow only the owner or admin (for future-proofing admin access)
+            if (
+                (!userId || String(publicationAuthorId) !== String(userId)) &&
+                userRole !== "admin"
+            ) {
+                return res.status(403).json({
+                    message: "You are not authorized to view this publication.",
+                });
+            }
+        }
+
+        res.status(200).json({
+            message: "Publication fetched successfully",
             data: publication,
         });
-
     } catch (error: any) {
-        console.error("Error fetching user's publication:", error);
-        return res.status(500).json({ message: "An error occurred while fetching your publication", error: error.message });
+        console.error("Error fetching single publication:", error);
+        res.status(500).json({ message: "An error occurred while fetching the publication", error: error.message });
     }
 };
 

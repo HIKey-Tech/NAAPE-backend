@@ -5,7 +5,7 @@ import {
     rejectPublication,
     getMyPublications,
     getAllPublications,
-    getMyPublication,
+    getSinglePublication,
     updateMyPublication,
     deleteMyPublication,
 } from "../../controllers/publication.controller";
@@ -46,8 +46,7 @@ router.post(
 router.get(
     "/my/:id",
     protect,
-    authorizeRoles("member", "editor", "admin"),
-    getMyPublication
+    getSinglePublication
 );
 
 // Update a specific publication belonging to logged-in user
