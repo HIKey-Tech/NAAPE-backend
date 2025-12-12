@@ -6,7 +6,8 @@ import { generateToken } from "../utils/generateToken";
 export const registerUser = async (req: Request, res: Response) => { 
     try {
         const { name, email, password, role } = req.body;
-        const user = await User.create({ name, email, password, role });
+        const normalizedEmail = email.trim().toLowerCase();
+        const user = await User.create({ name, email: normalizedEmail, password, role });
 
         res.status(201).json({
             _id: user._id,
@@ -22,7 +23,8 @@ export const registerUser = async (req: Request, res: Response) => {
 export const loginUser = async (req: Request, res: Response) => { 
     try {
         const { email, password } = req.body;
-        const user = await User.findOne({ email });
+        const normalizedEmail = email.trim().toLowerCase();
+        const user = await User.findOne({ email: normalizedEmail });
 
         if (user && (await user.matchePassword(password))) {
             res.status(200).json({
@@ -58,15 +60,16 @@ export const loginUser = async (req: Request, res: Response) => {
 //         }
 
 //         const { email, name, picture, sub } = payload;
+//         const normalizedEmail = email.trim().toLowerCase();
 
 //         // Check if user exists
-//         let user = await User.findOne({ email });
+//         let user = await User.findOne({ email: normalizedEmail });
 
 //         if (!user) {
 //             // Create a new user
 //             user = await User.create({
 //                 name,
-//                 email,
+//                 email: normalizedEmail,
 //                 password: sub, // not used, but required to satisfy schema
 //                 role: "member",
 //                 avatar: picture
