@@ -78,7 +78,7 @@ app.use("/api/v1/events",  eventRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 
 
-app.use("/api", titleRoutes);
+app.use("/api/v1/ai-title", titleRoutes);
 
 //email route
 app.use("api/v1/membership-form", membershipFormRoutes)
