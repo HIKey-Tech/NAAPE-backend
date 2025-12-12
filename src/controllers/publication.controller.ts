@@ -144,26 +144,10 @@ export const getSinglePublication = async (req: Request, res: Response) => {
             return res.status(404).json({ message: "Publication not found" });
         }
 
-        // Allow owners and admins to see their unapproved publication, others only see approved
-        const userId = (req as any).user?._id || (req.user && (req.user as any)._id);
-        const userRole = (req as any).user?.role || (req.user && (req.user as any).role);
-
-        // Compare author id as string or object, avoiding ._id on ObjectId
-        let publicationAuthorId: any = publication.author;
-        if (typeof publicationAuthorId === 'object' && publicationAuthorId !== null && 'id' in publicationAuthorId) {
-            publicationAuthorId = (publicationAuthorId as any).id; // Mongoose documents have 'id' getter
-        }
-
         if (publication.status !== "approved") {
-            // If not public, allow only the owner or admin (for future-proofing admin access)
-            if (
-                (!userId || String(publicationAuthorId) !== String(userId)) &&
-                userRole !== "admin"
-            ) {
-                return res.status(403).json({
-                    message: "You are not authorized to view this publication.",
-                });
-            }
+            return res.status(403).json({
+                message: "This publication is not approved for public viewing",
+            });
         }
 
         res.status(200).json({
@@ -171,8 +155,7 @@ export const getSinglePublication = async (req: Request, res: Response) => {
             data: publication,
         });
     } catch (error: any) {
-        console.error("Error fetching single publication:", error);
-        res.status(500).json({ message: "An error occurred while fetching the publication", error: error.message });
+        res.status(500).json({ message: error.message });
     }
 };
 
