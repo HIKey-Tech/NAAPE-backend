@@ -30,7 +30,9 @@ app.use(express.json());
 app.use(cors({
     origin: [
         "http://localhost:3000",
-        "https://naape-frontend.onrender.com"
+        "https://naape-frontend.onrender.com",
+        "https://naape.ng"
+
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     credentials: true
