@@ -43,7 +43,7 @@ app.use(express.json());
 app.use(helmet());
 
 // Apply rate limiting globally (for all requests)
-app.use(apiLimiter);
+// app.use(apiLimiter);
 
 //connect to database
 connectDB();
