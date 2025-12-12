@@ -81,7 +81,7 @@ app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/ai-title", titleRoutes);
 
 //email route
-app.use("api/v1/membership-form", membershipFormRoutes)
+app.use("/api/v1/membership-form", membershipFormRoutes)
 
 //listen to port
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
