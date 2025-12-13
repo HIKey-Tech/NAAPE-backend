@@ -137,27 +137,41 @@ export const getMyPublications = async (req: Request, res: Response) => {
 // Public: Fetch a single publication by id (everyone can view approved publications; owners can view their own pending/rejected)
 export const getSinglePublication = async (req: Request, res: Response) => {
     try {
-        const publication = await Publication.findById(req.params.id)
-            .populate("author", "name email role");
+        const publication = await Publication.findById(req.params.id).populate("author", "name email role");
 
         if (!publication) {
-            return res.status(404).json({ message: "Publication not found" });
+            return res.status(404).json({ message: "Publication not found" })
         }
 
-        if (publication.status !== "approved") {
+        //Get logged-in user if exists (optional auth)
+        const userId = (req as any).user?._id ||
+            (req.user && (req.user as any)._id) ||
+            null;
+
+        // If author is populated, _id is a property of the author object
+        const authorId =
+            publication.author && typeof publication.author === "object" && "id" in publication.author
+                ? (publication.author as any).id || (publication.author as any)._id?.toString()
+                : publication.author?.toString();
+
+        const isAuthor = userId && authorId && authorId.toString() === userId.toString();
+
+        //if not approved and not author then block
+        if (publication.status !== "approved" && !isAuthor) {
             return res.status(403).json({
-                message: "This publication is not approved for public viewing",
-            });
+                message: "This publication is not available for public view"
+            })
         }
 
-        res.status(200).json({
+        return res.status(200).json({
             message: "Publication fetched successfully",
-            data: publication,
-        });
+            data: publication
+        })
     } catch (error: any) {
-        res.status(500).json({ message: error.message });
+        return res.status(500).json({ message: error.message })
+
     }
-};
+}
 
 // Update my publication
 export const updateMyPublication = async (req: Request, res: Response) => {

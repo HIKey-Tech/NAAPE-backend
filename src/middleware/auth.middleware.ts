@@ -42,15 +42,38 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
         //Attach user to request (the missing piece!)
         (req as any).user = user;
 
-        console.log("Decoded token:", decoded);
-        console.log("User found:", user?._id);
-
 
         //Proceed to next handler
         next();
     } catch (error: any) {
         console.error("JWT verification failed:", error.message);
         res.status(401).json({ message: "Invalid or expired token" });
+    }
+};
+
+export const optionalProtect = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+) => {
+    try {
+        const authHeader = req.headers.authorization;
+
+        if (authHeader && authHeader.startsWith("Bearer ")) {
+            const token = authHeader.split(" ")[1];
+
+            const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+
+            const user = await User.findById(decoded.id).select("-password");
+
+            if (user) {
+                (req as any).user = user;
+            }
+        }
+
+        next(); // Always proceed
+    } catch (error) {
+        next(); // Fail silently → guest access
     }
 };
 

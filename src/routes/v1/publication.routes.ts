@@ -9,7 +9,7 @@ import {
     updateMyPublication,
     deleteMyPublication,
 } from "../../controllers/publication.controller";
-import { protect } from "../../middleware/auth.middleware";
+import { optionalProtect, protect } from "../../middleware/auth.middleware";
 import { authorizeRoles } from "../../middleware/role.middleware";
 import { upload } from "../../config/multer";
 
@@ -45,7 +45,7 @@ router.post(
 // Fetch a specific publication belonging to logged-in user
 router.get(
     "/:id",
-    protect,
+    optionalProtect,
     getSinglePublication
 );
 
