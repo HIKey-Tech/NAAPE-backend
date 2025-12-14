@@ -152,7 +152,7 @@ export const getSinglePublication = async (req: Request, res: Response) => {
         const authorId =
             publication.author && typeof publication.author === "object" && "id" in publication.author
                 ? (publication.author as any).id || (publication.author as any)._id?.toString()
-                : publication.author?.toString();
+                : publication.author?.toString();   
 
         const isAuthor = userId && authorId && authorId.toString() === userId.toString();
 

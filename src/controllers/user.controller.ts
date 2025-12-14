@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import User from "../models/User";
+import bcrypt from "bcrypt";
 import Publication from "../models/Publication";
+import cloudinary from "../config/cloudinary";
 
 export const getProfile = async (req: any, res: Response) => {
     try {
@@ -89,3 +91,117 @@ export const getAllMembers = async (req: Request, res: Response) => {
     }
 };
 
+//Change password
+export const changePassword = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { currentPassword, newPassword, confirmPassword } = req.body;
+
+        // 1️⃣ Validate inputs
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            return res.status(400).json({ message: "All fields are required." });
+        }
+
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({ message: "New passwords do not match." });
+        }
+
+        // 2️⃣ Get user WITH password
+        const user = await User.findById(userId).select("+password");
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found." });
+        }
+
+        // 3️⃣ Compare current password
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+
+        if (!isMatch) {
+            return res.status(401).json({ message: "Current password is incorrect." });
+        }
+
+        // 4️⃣ Prevent password reuse
+        const sameAsOld = await bcrypt.compare(newPassword, user.password);
+        if (sameAsOld) {
+            return res.status(400).json({ message: "New password must be different." });
+        }
+
+        // 5️⃣ Update password (hash via pre-save hook)
+        user.password = newPassword;
+        await user.save();
+
+        res.status(200).json({ message: "Password updated successfully." });
+
+    } catch (error) {
+        console.error("Change password error:", error);
+        res.status(500).json({ message: "Failed to update password." });
+    }
+};
+
+
+export const updateProfile = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const {
+            name,
+            email,
+            phone,
+            bio,
+            avatar,
+        } = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Optional email change check
+        // if (email && email !== user.email) {
+        //     const emailExists = await User.findOne({ email });
+        //     if (emailExists) {
+        //         return res.status(400).json({ message: "Email already in use" });
+        //     }
+        //     user.email = email;
+        // }
+
+        user.profile = {
+            ...user.profile,
+            ...req.body.profile
+        };
+
+        user.professional = {
+            ...user.professional,
+            ...req.body.professional
+        }
+
+        if (req.file) {
+            // Delete old image if exists
+            if (user.profile.image?.publicId) {
+                await cloudinary.uploader.destroy(user.profile.image.publicId);
+            }
+
+            user.profile.image = {
+                url: req.file.path,
+                publicId: req.file.filename,
+            };
+        }
+
+        await user.save();
+
+        res.status(200).json({
+            message: "Profile updated successfully",
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                avatar: user.profile.image,
+                phone: user.profile.phone,
+                // bio: user.bio,
+                role: user.role,
+            },
+        });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
