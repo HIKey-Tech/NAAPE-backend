@@ -181,3 +181,22 @@ export async function createSubscriptionPlan(req: Request, res: Response) {
 }
 
 
+
+/**
+ * Get all subscription plans
+ * Public: Anyone can fetch available plans
+ */
+export async function getAllPlans(req: Request, res: Response) {
+    try {
+        const plans = await Plan.find({ isActive: true }).sort({ price: 1 });
+        res.status(200).json({
+            message: "Plans fetched successfully",
+            count: plans.length,
+            data: plans,
+        });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message || "Failed to fetch plans" });
+    }
+}
+
+

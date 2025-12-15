@@ -104,7 +104,7 @@ app.use("/api/v1/membership-form", membershipFormRoutes)
 app.use(
     "/api/v1/admin/plans",
     protect,
-    authorizeRoles("admin"),
+    authorizeRoles("admin", "member"),
     planRoutes
 );
 
