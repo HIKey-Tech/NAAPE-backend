@@ -102,7 +102,7 @@ app.use("/api/v1/membership-form", membershipFormRoutes)
 
 //create sub plan
 app.use(
-    "/admin/plans",
+    "/api/v1/admin/plans",
     protect,
     authorizeRoles("admin"),
     planRoutes
