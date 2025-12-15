@@ -19,6 +19,7 @@ import membershipFormRoutes from "./routes/v1/membershipform.routes"
 
 // === Rate Limiting Middleware Setup ===
 import { apiLimiter, authLimiter } from "./utils/rate.limiting";
+import { errorHandler } from "./middleware/auth.middleware";
 
 dotenv.config();
 
@@ -47,6 +48,9 @@ app.use(helmet());
 
 //connect to database
 connectDB();
+
+//duplicate key error handler
+app.use(errorHandler);
 
 //auth route (add stricter auth limiter for login routes)
 app.use("/api/v1/auth", authLimiter, authRoutes);
