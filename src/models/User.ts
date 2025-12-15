@@ -1,5 +1,6 @@
 import mongoose, { Document, Schema } from "mongoose";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 
 export interface IUser extends Document {
     name: string;
@@ -9,6 +10,8 @@ export interface IUser extends Document {
     updatedAt: Date;
     role: "admin" | "editor" | "member";
     isVerified: boolean;
+    resetPasswordToken?: string;
+    resetPasswordExpire?: Date;
 
     profile: {
         image?: {
@@ -29,6 +32,7 @@ export interface IUser extends Document {
     };
 
     matchePassword(enteredPassword: string): Promise<boolean>;
+    generateAuthToken(): string;
 }
 
 const userSchema = new Schema<IUser>({
@@ -37,6 +41,8 @@ const userSchema = new Schema<IUser>({
     password: { type: String, required: true },
     role: { type: String, enum: ["admin", "editor", "member"], default: "member" },
     isVerified: { type: Boolean, default: false },
+    resetPasswordToken: { type: String },
+    resetPasswordExpire: { type: Date },
     profile: {
         image: { type: String },
         specialization: { type: String },
@@ -63,5 +69,33 @@ userSchema.pre("save", async function (next) {
 userSchema.methods.matchePassword = async function (enteredPassword: string) {
     return await bcrypt.compare(enteredPassword, this.password);
 };
+
+// Token generator method on schema
+userSchema.methods.generateAuthToken = function () {
+    const payload = {
+        id: this._id,
+        role: this.role,
+    };
+    const secret = process.env.JWT_SECRET || "@NAAPEPASSWORDTOKEN@";
+    const token = jwt.sign(payload, secret, { expiresIn: "30d" });
+    return token;
+};
+
+const cryptoLib = require("crypto");
+
+userSchema.methods.getResetPasswordToken = function () {
+    // Generate a random token (32 bytes for sufficient entropy)
+    const resetToken = cryptoLib.randomBytes(32).toString("hex");
+
+    this.resetPasswordToken = cryptoLib
+        .createHash("sha256")
+        .update(resetToken)
+        .digest("hex");
+
+    this.resetPasswordExpire = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    return resetToken;
+};
+
 
 export default mongoose.model<IUser>("User", userSchema);

@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { flw } from "../utils/flw.client";
 import { savePaymentHistory } from "../utils/savePaymentHistory";
+import { Subscription } from "../models/Subscription";
+import { Plan } from "../models/Plan";
 
 /**
  * Create a plan
@@ -49,36 +51,133 @@ export const createPlan = async (req: Request, res: Response) => {
 
 export const createSubscription = async (req: Request, res: Response) => {
     try {
-        const { plan_id, customer_email, customer_name, customer_phone } = req.body;
-        const r = await flw.post("/subscriptions", {
-            plan: plan_id,
+        const { tier } = req.body;
+
+        if (!tier || !["basic", "premium"].includes(tier)) {
+            return res.status(400).json({ error: "Invalid subscription tier" });
+        }
+
+        // user comes from auth middleware
+        const user = req.user;
+
+        // Find plan by tier
+        const plan = await Plan.findOne({
+            name: tier,
+            isActive: true,
+        });
+
+        if (!plan) {
+            return res.status(404).json({ error: "Subscription plan not found" });
+        }
+
+        // Create Flutterwave subscription
+        const response = await flw.post("/subscriptions", {
+            plan: plan.flutterwavePlanId,
             customer: {
-                email: customer_email,
-                name: customer_name,
-                phone_number: customer_phone,
+                email: user.email,
+                name: user.name,
+                phone_number: user.phone,
             },
         });
 
-        // Save payment history upon successful subscription creation
-        if (r?.data?.status === "success" && r?.data?.data) {
-            await savePaymentHistory(
-                r.data.data.customer?.id || customer_email, // Use customer ID if available, otherwise email
-                "subscription",
-                r.data.data.id || "", // transactionId, fallback to "" if not present
-                r.data.data.amount || 0,
-                r.data.data.currency || "NGN",
-                r.data.data.status || "active",
-                {
-                    planId: plan_id,
-                    customerName: customer_name,
-                    customerPhone: customer_phone
-                }
-            );
+        const data = response?.data?.data;
+
+        if (!data) {
+            return res.status(400).json({ error: "Failed to create subscription" });
         }
 
-        return res.json(r.data);
+        // Save subscription (NO PAYMENT YET)
+        await Subscription.create({
+            userId: user._id,
+            planId: plan._id,
+            tier: plan.name,
+            flutterwaveSubscriptionId: data.id,
+            flutterwaveCustomerId: data.customer?.id,
+            email: user.email,
+            status: "pending",
+        });
+
+        return res.status(201).json({
+            message: "Subscription created. Complete payment to activate.",
+            subscription: data,
+        });
     } catch (err: any) {
         console.error(err?.response?.data || err.message);
         return res.status(500).json({ error: "create subscription failed" });
     }
 };
+
+
+export const listSubscriptions = async (req: Request, res: Response) => {
+    const { status, tier } = req.query;
+
+    const filter: any = {};
+    if (status) filter.status = status;
+    if (tier) filter.tier = tier;
+
+    const subscriptions = await Subscription.find(filter)
+        .populate("userId", "name email")
+        .populate("planId", "name price interval")
+        .sort({ createdAt: -1 });
+
+    res.json(subscriptions);
+};
+
+
+export const cancelSubscriptionAdmin = async (req: Request, res: Response) => {
+    const subscription = await Subscription.findById(req.params.id);
+
+    if (!subscription) {
+        return res.status(404).json({ error: "Subscription not found" });
+    }
+
+    subscription.status = "cancelled";
+    subscription.endDate = new Date();
+    await subscription.save();
+
+    res.json({ message: "Subscription cancelled" });
+};
+
+
+// FOR ADMINS ONLY: CREATE A SUBSCRIPTION PLAN
+
+
+export async function createSubscriptionPlan(req: Request, res: Response) {
+    const {
+        name,
+        flutterwavePlanId,
+        price,
+        currency = "NGN",
+        interval = "monthly",
+        features = [],
+    } = req.body;
+
+    if (!name || !flutterwavePlanId || !price) {
+        return res.status(400).json({
+            code: "VALIDATION_ERROR",
+            message: "Missing required fields",
+        });
+    }
+
+    const existing = await Plan.findOne({ name });
+    if (existing) {
+        return res.status(409).json({
+            code: "PLAN_EXISTS",
+            message: "Plan already exists",
+        });
+    }
+
+    const plan = await Plan.create({
+        name,
+        flutterwavePlanId,
+        price,
+        currency,
+        interval,
+        features,
+        isActive: true,
+    });
+
+    res.status(201).json(plan);
+}
+
+

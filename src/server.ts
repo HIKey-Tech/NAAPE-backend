@@ -15,11 +15,14 @@ import eventRoutes from "./routes/v1/events.routes"
 import paymentRoutes from "./routes/v1/payment.routes";
 import titleRoutes from "./routes/v1/ai.title";
 import membershipFormRoutes from "./routes/v1/membershipform.routes"
+import planRoutes from "./routes/v1/plan.routes"
 
 
 // === Rate Limiting Middleware Setup ===
 import { apiLimiter, authLimiter } from "./utils/rate.limiting";
-import { errorHandler } from "./middleware/auth.middleware";
+import { errorHandler, protect } from "./middleware/auth.middleware";
+import { handleWebhook } from "./controllers/webhook";
+import { authorizeRoles } from "./middleware/role.middleware";
 
 dotenv.config();
 
@@ -50,12 +53,18 @@ app.use(helmet());
 connectDB();
 
 //duplicate key error handler
-app.use(errorHandler);
+// app.use(errorHandler);
 
 //auth route (add stricter auth limiter for login routes)
 app.use("/api/v1/auth", authLimiter, authRoutes);
 app.use("/api/v1/users", userRoutes)
 
+//webhook
+app.post(
+    "/webhook/flutterwave",
+    express.raw({ type: "application/json" }),
+    handleWebhook
+);
 //publication route
 app.use("/api/v1/publications", publicationRoutes)
 
@@ -90,6 +99,14 @@ app.use("/api/v1/ai-title", titleRoutes);
 
 //email route
 app.use("/api/v1/membership-form", membershipFormRoutes)
+
+//create sub plan
+app.use(
+    "/admin/plans",
+    protect,
+    authorizeRoles("admin"),
+    planRoutes
+);
 
 //listen to port
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
