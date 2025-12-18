@@ -3,33 +3,90 @@ import User from "../models/User";
 import bcrypt from "bcrypt";
 import Publication from "../models/Publication";
 import cloudinary from "../config/cloudinary";
+import { BaseController } from "./base.controller";
 
-export const getProfile = async (req: any, res: Response) => {
-    try {
-        const userId = (req as any).user.id;
+export class getProfileContoller extends BaseController {
+    async execute(req, res) {
+        try {
+            const userId = (req as any).user.id;
 
-        const user = await User.findById(userId)
-            .select("-password")
-            .lean();
+            const user = await User.findById(userId)
+                .select("-password")
+                .lean();
 
-        if (!user) return res.status(404).json({ message: "User not found" });
+            if (!user) return res.status(404).json({ message: "User not found" });
 
-        // Add stats
-        const total = await Publication.countDocuments({ author: userId });
-        const approved = await Publication.countDocuments({ author: userId, status: "approved" });
-        const pending = await Publication.countDocuments({ author: userId, status: "pending" });
+            // Add stats
+            const total = await Publication.countDocuments({ author: userId });
+            const approved = await Publication.countDocuments({ author: userId, status: "approved" });
+            const pending = await Publication.countDocuments({ author: userId, status: "pending" });
 
-        res.status(200).json({
-            message: "Profile fetched successfully",
-            data: {
+            res.status(200).json({
+                message: "Profile fetched successfully",
+                data: {
+                    ...user,
+                    stats: { total, approved, pending },
+                },
+
+            });
+
+            return this.ok(res, {
                 ...user,
                 stats: { total, approved, pending },
-            },
-        });
-    } catch (error: any) {
-        res.status(500).json({ message: error.message });
+            })
+        } catch (error: any) {
+            res.status(500).json({ message: error.message });
+            return 
+        }
     }
 };
+
+export const updateProfile = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        if (req.body.profile) {
+            user.profile = {
+                ...user.profile,
+                ...JSON.parse(req.body.profile),
+            };
+        }
+
+        if (req.body.professional) {
+            user.professional = {
+                ...user.professional,
+                ...JSON.parse(req.body.professional),
+            };
+        }
+
+        if (req.file) {
+            if (user.profile.image?.publicId) {
+                await cloudinary.uploader.destroy(user.profile.image.publicId);
+            }
+
+            user.profile.image = {
+                url: req.file.path,
+                publicId: req.file.filename,
+            };
+        }
+
+        await user.save();
+
+        res.status(200).json({
+            message: "Profile updated successfully",
+            user,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Profile update failed" });
+    }
+};
+
 
 export const getAllUsers = async (req: Request, res: Response) => {
     try {
@@ -139,69 +196,3 @@ export const changePassword = async (req, res) => {
 };
 
 
-export const updateProfile = async (req, res) => {
-    try {
-        const userId = req.user.id;
-
-        const {
-            name,
-            email,
-            phone,
-            bio,
-            avatar,
-        } = req.body;
-
-        const user = await User.findById(userId);
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
-
-        // Optional email change check
-        // if (email && email !== user.email) {
-        //     const emailExists = await User.findOne({ email });
-        //     if (emailExists) {
-        //         return res.status(400).json({ message: "Email already in use" });
-        //     }
-        //     user.email = email;
-        // }
-
-        user.profile = {
-            ...user.profile,
-            ...req.body.profile
-        };
-
-        user.professional = {
-            ...user.professional,
-            ...req.body.professional
-        }
-
-        if (req.file) {
-            // Delete old image if exists
-            if (user.profile.image?.publicId) {
-                await cloudinary.uploader.destroy(user.profile.image.publicId);
-            }
-
-            user.profile.image = {
-                url: req.file.path,
-                publicId: req.file.filename,
-            };
-        }
-
-        await user.save();
-
-        res.status(200).json({
-            message: "Profile updated successfully",
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                avatar: user.profile.image,
-                phone: user.profile.phone,
-                // bio: user.bio,
-                role: user.role,
-            },
-        });
-    } catch (error: any) {
-        res.status(500).json({ message: error.message });
-    }
-};

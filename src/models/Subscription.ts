@@ -6,59 +6,92 @@ export interface ISubscription extends Document {
     flutterwaveSubscriptionId: string;
     flutterwaveCustomerId?: string;
     email: string;
-    tier: "basic" | "premium"
+    tier: "basic" | "premium";
     status: "pending" | "active" | "cancelled";
     startDate?: Date;
     endDate?: Date;
     createdAt: Date;
     updatedAt: Date;
+
+    // Embedded Plan snapshot at time of subscription
+    planName: "basic" | "premium";
+    flutterwavePlanId: string;
+    price: number;
+    currency: string;
+    interval: "monthly" | "yearly";
+    features: string[];
+    isActive: boolean;
 }
 
 const SubscriptionSchema = new Schema<ISubscription>(
     {
-        planId: { type: Schema.Types.ObjectId, required: true, ref: "Plan" },
         userId: {
             type: Schema.Types.ObjectId,
             ref: "User",
             required: true,
-            index: true,
+            index: true
         },
-
+        planId: {
+            type: Schema.Types.ObjectId,
+            ref: "Plan",
+            required: true
+        },
         flutterwaveSubscriptionId: {
             type: String,
             required: true,
-            unique: true,
+            unique: true
         },
-
         flutterwaveCustomerId: {
-            type: String,
+            type: String
         },
-
         email: {
             type: String,
             required: true,
-            index: true,
+            index: true
         },
-
         tier: {
             type: String,
             enum: ["basic", "premium"],
-            required: true,
+            required: true
         },
-
         status: {
             type: String,
             enum: ["pending", "active", "cancelled"],
-            default: "pending",
+            default: "pending"
         },
-
         startDate: {
-            type: Date,
+            type: Date
         },
-
         endDate: {
-            type: Date,
+            type: Date
         },
+        // Embedded 'Plan' fields snapshot
+        planName: {
+            type: String,
+            enum: ["basic", "premium"]
+        },
+        flutterwavePlanId: {
+            type: String
+        },
+        price: {
+            type: Number
+        },
+        currency: {
+            type: String,
+            default: "NGN"
+        },
+        interval: {
+            type: String,
+            enum: ["monthly", "yearly"],
+            default: "monthly"
+        },
+        features: {
+            type: [String]
+        },
+        isActive: {
+            type: Boolean,
+            default: true
+        }
     },
     { timestamps: true }
 );

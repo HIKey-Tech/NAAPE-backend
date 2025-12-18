@@ -108,6 +108,43 @@ export const createSubscription = async (req: Request, res: Response) => {
 };
 
 
+export const initializeSubscriptionPayment = async (req: Request, res: Response) => {
+    const user = req.user;
+    const { subscriptionId } = req.body;
+
+    const subscription = await Subscription.findById(subscriptionId).populate("planId");
+
+    if (!subscription || subscription.status != "pending") {
+        return res.status(400).json({ message: "Ivalid subscription state"})
+    }
+
+    const plan = subscription;
+
+    const response = await flw.post("/payments", {
+        tx_ref: `sub_${subscription._id}_${Date.now()}`,
+        amount: plan.price,
+        current: plan.currency,
+        redirect_url: process.env.FLW_REDIRECT_URL,
+        customer: {
+            email: user.email,
+            name: user.name
+        },
+        payment_plan: plan.flutterwavePlanId,
+        customizations: {
+            title: `${plan.planName} Subscription`,
+            description: "Recurring subscription payment"
+        }
+        
+    });
+
+    return res.json({
+        checkoutUrl: response.data.data.link
+    })
+
+
+}
+
+
 export const listSubscriptions = async (req: Request, res: Response) => {
     const { status, tier } = req.query;
 

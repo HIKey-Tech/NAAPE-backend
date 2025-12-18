@@ -17,7 +17,7 @@ export interface IUser extends Document {
         image?: {
             url: string,
             publicId: string,
-        },         // Cloudinary / S3 URL
+        },         
         specialization?: string;
         bio?: string;
         organization?: string;
