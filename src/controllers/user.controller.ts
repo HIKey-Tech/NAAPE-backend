@@ -3,41 +3,31 @@ import User from "../models/User";
 import bcrypt from "bcrypt";
 import Publication from "../models/Publication";
 import cloudinary from "../config/cloudinary";
-import { BaseController } from "./base.controller";
 
-export class getProfileContoller extends BaseController {
-    async execute(req, res) {
-        try {
-            const userId = (req as any).user.id;
+export const getProfile = async (req: any, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
 
-            const user = await User.findById(userId)
-                .select("-password")
-                .lean();
+        const user = await User.findById(userId)
+            .select("-password")
+            .lean();
 
-            if (!user) return res.status(404).json({ message: "User not found" });
+        if (!user) return res.status(404).json({ message: "User not found" });
 
-            // Add stats
-            const total = await Publication.countDocuments({ author: userId });
-            const approved = await Publication.countDocuments({ author: userId, status: "approved" });
-            const pending = await Publication.countDocuments({ author: userId, status: "pending" });
+        // Add stats
+        const total = await Publication.countDocuments({ author: userId });
+        const approved = await Publication.countDocuments({ author: userId, status: "approved" });
+        const pending = await Publication.countDocuments({ author: userId, status: "pending" });
 
-            res.status(200).json({
-                message: "Profile fetched successfully",
-                data: {
-                    ...user,
-                    stats: { total, approved, pending },
-                },
-
-            });
-
-            return this.ok(res, {
+        res.status(200).json({
+            message: "Profile fetched successfully",
+            data: {
                 ...user,
                 stats: { total, approved, pending },
-            })
-        } catch (error: any) {
-            res.status(500).json({ message: error.message });
-            return 
-        }
+            },
+        });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
     }
 };
 
