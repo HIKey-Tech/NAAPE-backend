@@ -33,30 +33,41 @@ export const getProfile = async (req: any, res: Response) => {
 
 export const updateProfile = async (req, res) => {
     try {
-        const userId = req.user.id;
-        const user = await User.findById(userId);
-
+        const user = await User.findById(req.user.id);
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
 
+        // Update flat fields
+        if (req.body.name) {
+            user.name = req.body.name;
+        }
+
+        // Update profile object
         if (req.body.profile) {
+            const parsedProfile = JSON.parse(req.body.profile);
             user.profile = {
                 ...user.profile,
-                ...JSON.parse(req.body.profile),
+                ...parsedProfile,
             };
         }
 
+        // Update professional object
         if (req.body.professional) {
+            const parsedProfessional = JSON.parse(req.body.professional);
             user.professional = {
                 ...user.professional,
-                ...JSON.parse(req.body.professional),
+                ...parsedProfessional,
             };
         }
 
+        // Handle image replacement
         if (req.file) {
-            if (user.profile.image?.publicId) {
-                await cloudinary.uploader.destroy(user.profile.image.publicId);
+            // Delete old image from Cloudinary
+            if (user.profile?.image?.publicId) {
+                await cloudinary.uploader.destroy(
+                    user.profile.image.publicId
+                );
             }
 
             user.profile.image = {
@@ -69,10 +80,10 @@ export const updateProfile = async (req, res) => {
 
         res.status(200).json({
             message: "Profile updated successfully",
-            user,
+            data: user,
         });
     } catch (error) {
-        console.error(error);
+        console.error("Update profile error:", error);
         res.status(500).json({ message: "Profile update failed" });
     }
 };

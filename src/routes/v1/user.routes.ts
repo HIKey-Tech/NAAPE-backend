@@ -2,7 +2,7 @@ import express from "express";
 import { getProfile, getAllUsers, updateUserRole, getAllMembers, changePassword, updateProfile } from "../../controllers/user.controller";
 import { protect } from "../../middleware/auth.middleware";
 import { authorizeRoles } from "../../middleware/role.middleware";
-import { upload } from "../../config/multer";
+import { upload, uploadProfileImage } from "../../config/multer";
 
 const router = express.Router();
 
@@ -12,7 +12,7 @@ router.patch("/change-password", protect, changePassword)
 router.put(
     "/profile",
     protect,
-    upload.single("image"),
+    uploadProfileImage.single("image"),
     updateProfile
 );
 

@@ -44,11 +44,14 @@ const userSchema = new Schema<IUser>({
     resetPasswordToken: { type: String },
     resetPasswordExpire: { type: Date },
     profile: {
-        image: { type: String },
-        specialization: { type: String },
-        bio: { type: String },
-        organization: { type: String },
-        phone: { type: String }
+    image: {
+        url: { type: String },
+        publicId: { type: String },
+    },
+    specialization: { type: String },
+    bio: { type: String },
+    organization: { type: String },
+    phone: { type: String }
     },
     professional: {
         licenseNumber: { type: String },

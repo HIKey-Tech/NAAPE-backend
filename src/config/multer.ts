@@ -16,7 +16,46 @@ const storage = new CloudinaryStorage({
         folder: "naape-images/",
         allowed_formats: ["jpg", "jpeg", "png", "webp"],
         public_id: generatePublicId(file),
+        
     }),
+});
+
+const profileImageStorage = new CloudinaryStorage({
+    cloudinary,
+    params: async (_req, file) => ({
+        folder: "profile/",
+        allowed_formats: ["jpg", "jpeg", "png", "webp"],
+        public_id: generatePublicId(file),
+        transformation: [
+            {
+                width: 400,
+                height: 400,
+                crop: "fill",
+                gravity: "face",
+                quality: "auto",
+                fetch_format: "auto",
+            },
+        ],
+
+    })
+})
+
+
+// Multer starts from here
+
+export const uploadProfileImage = multer({
+    storage: profileImageStorage,
+    limits: { fileSize: 8 * 1024 * 1024 }, 
+    fileFilter: (req, file, cb) => {
+        const accepted = /jpeg|jpg|png|webp/;
+        const ext = path.extname(file.originalname).toLowerCase();
+        const mime = file.mimetype;
+        if (accepted.test(ext) && accepted.test(mime)) {
+            cb(null, true);
+        } else {
+            cb(new Error("Only image files (jpg, jpeg, png, webp) are allowed!"));
+        }
+    },
 });
 
 export const upload = multer({
