@@ -12,7 +12,8 @@ router.patch("/change-password", protect, changePassword)
 router.put(
     "/profile",
     protect,
-    uploadProfileImage.single("image"),
+    // uploadProfileImage.single("image"),
+    upload.single("image"),
     updateProfile
 );
 

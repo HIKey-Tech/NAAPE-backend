@@ -51,7 +51,7 @@ export const createMembershipForm = async (req: Request, res: Response) => {
         });
 
         // 4. Confirmation email to applicant, 
-        if (typeof tel === "string" && tel.includes("@")) {
+        if (typeof email === "string" && tel.includes("@")) {
             await sgMail.send({
                 to: email,
                 from: "no-reply@naape.org",

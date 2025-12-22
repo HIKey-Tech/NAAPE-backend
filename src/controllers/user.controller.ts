@@ -72,15 +72,16 @@ export const updateProfile = async (req, res) => {
 
             user.profile.image = {
                 url: req.file.path,
-                publicId: req.file.filename,
+                publicId: req.file.filename || req.file.public_id,
             };
         }
 
         await user.save();
 
+        const sanitizedUser = await User.findById(user._id).select("-password");
         res.status(200).json({
             message: "Profile updated successfully",
-            data: user,
+            data: sanitizedUser,
         });
     } catch (error) {
         console.error("Update profile error:", error);
@@ -153,10 +154,10 @@ export const getAllMembers = async (req: Request, res: Response) => {
 export const changePassword = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { currentPassword, newPassword, confirmPassword } = req.body;
+        const { oldPassword, newPassword, confirmPassword } = req.body;
 
         // 1️⃣ Validate inputs
-        if (!currentPassword || !newPassword || !confirmPassword) {
+        if (!oldPassword || !newPassword || !confirmPassword) {
             return res.status(400).json({ message: "All fields are required." });
         }
 
@@ -172,7 +173,7 @@ export const changePassword = async (req, res) => {
         }
 
         // 3️⃣ Compare current password
-        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        const isMatch = await bcrypt.compare(oldPassword, user.password);
 
         if (!isMatch) {
             return res.status(401).json({ message: "Current password is incorrect." });
