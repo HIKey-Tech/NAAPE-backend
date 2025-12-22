@@ -45,16 +45,16 @@ export const createMembershipForm = async (req: Request, res: Response) => {
         // 3. Send email to NAAPE Admin
         await sgMail.send({
             to: "info@naape.org.ng",
-            from: "no-reply@naape.org",
+            from: "no-reply@naape.org.ng",
             subject: "New NAAPE Membership Application",
             text: `Name: ${name}\nTel: ${tel}\n\n${formatted}`,
         });
 
         // 4. Confirmation email to applicant, 
-        if (typeof email === "string" && tel.includes("@")) {
+        if (typeof email === "string" && email.includes("@")) {
             await sgMail.send({
                 to: email,
-                from: "no-reply@naape.org",
+                from: "no-reply@naape.org.ng",
                 subject: "NAAPE Membership Form Received",
                 text: `Hello ${name},\n\nYour membership application has been received.\nWe will contact you shortly.\n\nNAAPE Secretariat`,
             });
