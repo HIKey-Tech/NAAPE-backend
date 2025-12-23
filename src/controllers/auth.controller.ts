@@ -3,7 +3,7 @@ import User from "../models/User";
 import { generateToken } from "../utils/generateToken";
 // import { OAuth2Client } from "google-auth-library";
 
-export const registerUser = async (req: Request, res: Response) => { 
+export const registerUser = async (req: Request, res: Response) => {
     try {
         const { name, email, password, role } = req.body;
         const normalizedEmail = email.trim().toLowerCase();
@@ -27,12 +27,13 @@ export const registerUser = async (req: Request, res: Response) => {
     }
 }
 
-export const loginUser = async (req: Request, res: Response) => { 
+export const loginUser = async (req: Request, res: Response) => {
     try {
         const { email, password } = req.body;
         const normalizedEmail = email.trim().toLowerCase();
         const user = await User.findOne({ email: normalizedEmail });
 
+        console.log("UD:, user")
         if (user && (await user.matchePassword(password))) {
             res.status(200).json({
                 _id: user._id,
