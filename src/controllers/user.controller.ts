@@ -53,6 +53,10 @@ export const updateProfile = async (req, res) => {
         }
 
         // Update professional object
+        // Using JSON.parse directly on req.body.professional risks crashing the server if invalid JSON is sent.
+        // An invalid JSON string sent from the client will throw an exception here,
+        // causing your try/catch to handle it and return a generic 500 error,
+        // which makes it hard for clients to know the request body was malformed.
         if (req.body.professional) {
             const parsedProfessional = JSON.parse(req.body.professional);
             user.professional = {
