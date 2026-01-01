@@ -33,7 +33,7 @@ export const loginUser = async (req: Request, res: Response) => {
         const normalizedEmail = email.trim().toLowerCase();
         const user = await User.findOne({ email: normalizedEmail });
 
-        console.log("UD:, user")
+        
         if (user && (await user.matchePassword(password))) {
             res.status(200).json({
                 _id: user._id,

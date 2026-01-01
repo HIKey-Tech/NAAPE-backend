@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import cryptoLib from "crypto";
 
 export interface IUser extends Document {
     name: string;
@@ -38,7 +39,7 @@ export interface IUser extends Document {
 const userSchema = new Schema<IUser>({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    password: { type: String, required: true,  },
+    password: { type: String, required: true },
     role: { type: String, enum: ["admin", "editor", "member"], default: "member" },
     isVerified: { type: Boolean, default: false },
     resetPasswordToken: { type: String },
@@ -84,7 +85,6 @@ userSchema.methods.generateAuthToken = function () {
     return token;
 };
 
-const cryptoLib = require("crypto");
 
 userSchema.methods.getResetPasswordToken = function () {
     // Generate a random token (32 bytes for sufficient entropy)
