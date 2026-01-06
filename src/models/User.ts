@@ -25,7 +25,7 @@ export interface IUser extends Document {
         phone?: string;
     };
 
-    professional: {
+    professional: { 
         licenseNumber?: string;
         licenseDocument?: string; // PDF/image URL
         yearsOfExperience?: number;

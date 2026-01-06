@@ -29,8 +29,8 @@ router.post("/transfers", createTransfer);
 
 //Events verify and register
 
-router.post("/events/register", protect, registerEventPayment);
-router.get("/events/verify", protect, verifyEventPayment);
+router.post("/events/register",  registerEventPayment);
+router.get("/events/verify",  verifyEventPayment);
 
 //Payment History
 router.get("/history/:userId", protect, getPaymentHistory);

@@ -13,7 +13,7 @@ import { upload } from "../../config/multer";
 const router = express.Router();
 
 router.post("/", protect, authorizeRoles("admin"), upload.single("image"), createEvent);
-router.get("/", protect, getAllEvents);
-router.get("/:id", protect, getSingleEvent);
+router.get("/", getAllEvents);
+router.get("/:id",  getSingleEvent);
 
 export default router;
