@@ -49,117 +49,130 @@ export const createPlan = async (req: Request, res: Response) => {
  * { customer_email, plan_id, currency = "NGN", customer_phone, customer_name }
  */
 
-export const createSubscription = async (req: Request, res: Response) => {
+/* -------------------------------------------------------------------------- */
+/*                            CREATE A SUBSCRIPTION                            */
+/* -------------------------------------------------------------------------- */
+
+// export const createSubscription = async (req: Request, res: Response) => {
+//     try {
+//         const { tier } = req.body;
+
+//         if (!tier || !["basic", "premium"].includes(tier)) {
+//             return res.status(400).json({ error: "Invalid subscription tier" });
+//         }
+
+//         const user = req.user;
+//         if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+//         // Find plan
+//         const plan = await Plan.findOne({ name: tier, isActive: true });
+//         if (!plan) return res.status(404).json({ error: "Subscription plan not found" });
+
+//         // Create DB subscription first (Flutterwave subscription/payment will be initialized later)
+//         const subscription = await Subscription.create({
+//             userId: user._id,
+//             planId: plan._id,
+//             tier: plan.name,
+//             email: user.email,
+//             status: "pending",
+//             planName: plan.name,
+//             flutterwavePlanId: plan.flutterwavePlanId,
+//             price: plan.price,
+//             currency: plan.currency,
+//             interval: plan.interval,
+//             features: plan.features,
+//             isActive: plan.isActive,
+//         });
+
+//         return res.status(201).json({
+//             message: "Subscription created. Complete payment to activate.",
+//             subscription,
+//         });
+//     } catch (err: any) {
+//         console.error(err?.response?.data || err.message);
+//         return res.status(500).json({ error: "create subscription failed" });
+//     }
+// };
+
+/**
+ * Initialize subscription payment
+ * POST /api/subscriptions/initialize-payment
+ * { subscriptionId }
+ */
+export const initializeSubscriptionPayment = async (req: Request, res: Response) => {
     try {
+        const user = req.user;
+        if (!user) return res.status(401).json({ error: "Unauthorized" });
+
         const { tier } = req.body;
 
         if (!tier || !["basic", "premium"].includes(tier)) {
             return res.status(400).json({ error: "Invalid subscription tier" });
         }
 
-        // user comes from auth middleware
-        const user = req.user;
-
-        // Find plan by tier
-        const plan = await Plan.findOne({
-            name: tier,
-            isActive: true,
-        });
-
+        const plan = await Plan.findOne({ name: tier, isActive: true });
         if (!plan) {
             return res.status(404).json({ error: "Subscription plan not found" });
         }
 
-        // Create Flutterwave subscription
-        const response = await flw.post("/subscriptions", {
-            plan: plan.flutterwavePlanId,
+        const redirectUrl = process.env.FLW_REDIRECT_URL;
+        if (!redirectUrl) {
+            return res.status(500).json({ error: "FLW_REDIRECT_URL not set" });
+        }
+
+        const txRef = `sub_${user._id}_${Date.now()}`;
+
+        const response = await flw.post("/payments", {
+            tx_ref: txRef,
+            amount: plan.price,
+            currency: plan.currency,
+            redirect_url: redirectUrl,
+            payment_plan: plan.flutterwavePlanId,
             customer: {
                 email: user.email,
                 name: user.name,
                 phone_number: user.phone,
             },
+            customizations: {
+                title: `${plan.name} Subscription`,
+                description: "Recurring subscription payment",
+            },
         });
 
-        const data = response?.data?.data;
-
-        if (!data) {
-            return res.status(400).json({ error: "Failed to create subscription" });
-        }
-
-        // Save subscription (NO PAYMENT YET)
-        await Subscription.create({
-            userId: user._id,
-            planId: plan._id,
-            tier: plan.name,
-            flutterwaveSubscriptionId: data.id,
-            flutterwaveCustomerId: data.customer?.id,
-            email: user.email,
-            status: "pending",
-        });
-
-        return res.status(201).json({
-            message: "Subscription created. Complete payment to activate.",
-            subscription: data,
+        return res.json({
+            checkoutUrl: response.data.data.link,
+            txRef,
         });
     } catch (err: any) {
         console.error(err?.response?.data || err.message);
-        return res.status(500).json({ error: "create subscription failed" });
+        return res.status(500).json({ error: "Payment initialization failed" });
     }
 };
 
 
-export const initializeSubscriptionPayment = async (req: Request, res: Response) => {
-    const user = req.user;
-    const { subscriptionId } = req.body;
-
-    const subscription = await Subscription.findById(subscriptionId).populate("planId");
-
-    if (!subscription || subscription.status != "pending") {
-        return res.status(400).json({ message: "Ivalid subscription state"})
-    }
-
-    const plan = subscription;
-
-    const response = await flw.post("/payments", {
-        tx_ref: `sub_${subscription._id}_${Date.now()}`,
-        amount: plan.price,
-        current: plan.currency,
-        redirect_url: process.env.FLW_REDIRECT_URL,
-        customer: {
-            email: user.email,
-            name: user.name
-        },
-        payment_plan: plan.flutterwavePlanId,
-        customizations: {
-            title: `${plan.planName} Subscription`,
-            description: "Recurring subscription payment"
-        }
-        
-    });
-
-    return res.json({
-        checkoutUrl: response.data.data.link
-    })
-
-
-}
-
+/* -------------------------------------------------------------------------- */
+/*                           LIST SUBSCRIPTIONS                                */
+/* -------------------------------------------------------------------------- */
 
 export const listSubscriptions = async (req: Request, res: Response) => {
-    const { status, tier } = req.query;
+    try {
+        const { status, tier } = req.query;
 
-    const filter: any = {};
-    if (status) filter.status = status;
-    if (tier) filter.tier = tier;
+        const filter: any = {};
+        if (status) filter.status = status;
+        if (tier) filter.tier = tier;
 
-    const subscriptions = await Subscription.find(filter)
-        .populate("userId", "name email")
-        .populate("planId", "name price interval")
-        .sort({ createdAt: -1 });
+        const subscriptions = await Subscription.find(filter)
+            .populate("userId", "name email")
+            .populate("planId", "name price interval")
+            .sort({ createdAt: -1 });
 
-    res.json(subscriptions);
+        res.json(subscriptions);
+    } catch (err: any) {
+        console.error(err.message);
+        res.status(500).json({ error: "Failed to fetch subscriptions" });
+    }
 };
-
 
 export const cancelSubscriptionAdmin = async (req: Request, res: Response) => {
     const subscription = await Subscription.findById(req.params.id);

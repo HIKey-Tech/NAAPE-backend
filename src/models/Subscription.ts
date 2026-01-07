@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface ISubscription extends Document {
     userId: mongoose.Types.ObjectId;
     planId: mongoose.Types.ObjectId;
-    flutterwaveSubscriptionId: string;
+    flutterwaveSubscriptionId?: string; // ✅ optional now
     flutterwaveCustomerId?: string;
     email: string;
     tier: "basic" | "premium";
@@ -15,8 +15,8 @@ export interface ISubscription extends Document {
 
     // Embedded Plan snapshot at time of subscription
     planName: "basic" | "premium";
-    flutterwavePlanId: string;
-    price: number;
+    flutterwavePlanId?: string;
+    price?: number;
     currency: string;
     interval: "monthly" | "yearly";
     features: string[];
@@ -29,69 +29,48 @@ const SubscriptionSchema = new Schema<ISubscription>(
             type: Schema.Types.ObjectId,
             ref: "User",
             required: true,
-            index: true
+            index: true,
         },
         planId: {
             type: Schema.Types.ObjectId,
             ref: "Plan",
-            required: true
+            required: true,
         },
         flutterwaveSubscriptionId: {
-            type: String,
-            required: true,
-            unique: true
+            type: String, // ✅ optional now
+            unique: true,
+            sparse: true, // allows multiple nulls
         },
         flutterwaveCustomerId: {
-            type: String
+            type: String,
         },
         email: {
             type: String,
             required: true,
-            index: true
+            index: true,
         },
         tier: {
             type: String,
             enum: ["basic", "premium"],
-            required: true
+            required: true,
         },
         status: {
             type: String,
             enum: ["pending", "active", "cancelled"],
-            default: "pending"
+            default: "pending",
         },
-        startDate: {
-            type: Date
-        },
-        endDate: {
-            type: Date
-        },
-        // Embedded 'Plan' fields snapshot
+        startDate: { type: Date },
+        endDate: { type: Date },
         planName: {
             type: String,
-            enum: ["basic", "premium"]
+            enum: ["basic", "premium"],
         },
-        flutterwavePlanId: {
-            type: String
-        },
-        price: {
-            type: Number
-        },
-        currency: {
-            type: String,
-            default: "NGN"
-        },
-        interval: {
-            type: String,
-            enum: ["monthly", "yearly"],
-            default: "monthly"
-        },
-        features: {
-            type: [String]
-        },
-        isActive: {
-            type: Boolean,
-            default: true
-        }
+        flutterwavePlanId: { type: String },
+        price: { type: Number },
+        currency: { type: String, default: "NGN" },
+        interval: { type: String, enum: ["monthly", "yearly"], default: "monthly" },
+        features: { type: [String] },
+        isActive: { type: Boolean, default: true },
     },
     { timestamps: true }
 );
