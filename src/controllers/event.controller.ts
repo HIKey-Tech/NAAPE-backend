@@ -25,9 +25,7 @@ export const createEvent = async (req, res) => {
 
         const adminId = req.user.id;
 
-        console.log("BODY:", req.body);
-        console.log("FILE:", req.file);
-        console.log("USER:", req.user);
+        
 
         const event = await Event.create({
             title,
