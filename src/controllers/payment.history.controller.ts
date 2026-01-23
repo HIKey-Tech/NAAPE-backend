@@ -1,10 +1,7 @@
 import { Request, Response } from "express";
 import PaymentHistory from "../models/PaymentHistory";
 
-/**
- * Get all payment history for a user
- * GET /api/payments/history/:userId
- */
+
 export const getPaymentHistory = async (req: Request, res: Response) => {
     try {
         const userId = req.params.userId;

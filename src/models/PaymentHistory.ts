@@ -13,7 +13,7 @@ export interface IPaymentHistory extends Document {
 
 const PaymentHistorySchema = new Schema<IPaymentHistory>(
     {
-        user: { type: Schema.Types.ObjectId, ref: "User", required: true },
+        user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
         type: { type: String, required: true },
         transactionId: { type: String, required: true },
         amount: { type: Number, required: true },
