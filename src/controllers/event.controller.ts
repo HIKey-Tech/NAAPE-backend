@@ -239,7 +239,7 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
 
         console.log("during verfication", data.status)
 
-        return res.json({ status: "success" });
+        return res.json({ status: "successful" });
 
     } catch (err) {
         console.error("Verify payment error:", err);
