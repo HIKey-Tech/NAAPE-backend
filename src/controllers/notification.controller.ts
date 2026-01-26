@@ -21,7 +21,7 @@ export const markAsRead = async (req: any, res: Response) => {
 
         const notification = await Notification.findOneAndUpdate(
             { _id: id, user: req.user.id },
-            { isRead: true },
+            { read: true },
             { new: true }
         );
 
@@ -38,8 +38,8 @@ export const markAsRead = async (req: any, res: Response) => {
 export const markAllAsRead = async (req: any, res: Response) => {
     try {
         await Notification.updateMany(
-            { user: req.user.id, isRead: false },
-            { isRead: true }
+            { user: req.user.id, read: false },
+            { read: true }
         );
 
         res.status(200).json({ message: "All notifications marked as read" });

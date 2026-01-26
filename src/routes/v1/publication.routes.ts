@@ -45,7 +45,7 @@ router.post(
 // Fetch a specific publication belonging to logged-in user
 router.get(
     "/:id",
-    optionalProtect,
+    // optionalProtect,
     getSinglePublication
 );
 

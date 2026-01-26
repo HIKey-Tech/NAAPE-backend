@@ -5,7 +5,7 @@ export interface INotification extends Document {
     title: string;
     message: string;
     type: "publication" | "system" | "membership" | "general" | "event";
-    isRead: boolean;
+    read: boolean;
     createdAt: Date;
 }
 
@@ -30,7 +30,7 @@ const NotificationSchema = new Schema<INotification>(
             enum: ["publication", "system", "membership", "general", "event"],
             default: "general",
         },
-        isRead: {
+        read: {
             type: Boolean,
             default: false,
         },

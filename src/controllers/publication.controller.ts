@@ -1,6 +1,8 @@
+import { Types } from "mongoose";
 import { Request, Response } from "express";
 import Publication from "../models/Publication";
 import Notification from "../models/Notification";
+import mongoose from "mongoose";
 
 // Create new publication (Member)
 export const createPublication = async (req: Request, res: Response) => {
@@ -136,6 +138,10 @@ export const getMyPublications = async (req: Request, res: Response) => {
 
 // Public: Fetch a single publication by id (everyone can view approved publications; owners can view their own pending/rejected)
 export const getSinglePublication = async (req: Request, res: Response) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+        return res.status(400).json({ message: "Invalid publication ID" });
+    }
+
     try {
         const publication = await Publication.findById(req.params.id).populate("author", "name email role");
 
@@ -149,12 +155,29 @@ export const getSinglePublication = async (req: Request, res: Response) => {
             null;
 
         // If author is populated, _id is a property of the author object
-        const authorId =
-            publication.author && typeof publication.author === "object" && "id" in publication.author
-                ? (publication.author as any).id || (publication.author as any)._id?.toString()
-                : publication.author?.toString();   
+        // Fix TypeScript errors due to ambiguous author type (ObjectId | IUser)
 
-        const isAuthor = userId && authorId && authorId.toString() === userId.toString();
+        let authorId: string | null = null;
+        if (
+            publication.author &&
+            typeof publication.author === "object" &&
+            "_id" in publication.author
+        ) {
+            // author is populated
+            authorId = (publication.author as any)._id.toString();
+        } else if (
+            publication.author &&
+            (typeof publication.author === "string" ||
+                publication.author instanceof Types.ObjectId)
+        ) {
+            // author is ObjectId or string
+            authorId = publication.author.toString();
+        }
+
+        const isAuthor =
+            !!userId &&
+            !!authorId &&
+            authorId.toString() === userId.toString();
 
         //if not approved and not author then block
         if (publication.status !== "approved" && !isAuthor) {
