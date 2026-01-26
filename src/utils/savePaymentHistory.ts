@@ -1,7 +1,7 @@
 import PaymentHistory from "../models/PaymentHistory";
 
 export const savePaymentHistory = async (
-    userId: string,
+    userId: string | null,
     type: string,
     transactionId: string,
     amount: number,
@@ -9,13 +9,18 @@ export const savePaymentHistory = async (
     status: string,
     metadata: any = {}
 ) => {
-    return await PaymentHistory.create({
-        user: userId,
-        type,
-        transactionId,
-        amount,
-        currency,
-        status,
-        metadata,
-    });
+    try {
+        return await PaymentHistory.create({
+            user: userId,
+            type,
+            transactionId,
+            amount,
+            currency,
+            status,
+            metadata,
+        });
+    } catch (err) {
+        console.error("PaymentHistory error:", err);
+        throw err;
+    }
 };
