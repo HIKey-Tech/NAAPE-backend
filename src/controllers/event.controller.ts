@@ -148,6 +148,8 @@ export const registerEventPayment = async (req, res) => {
 
         const response = await flw.post("/payments", payload);
 
+        console.log("registering...", response)
+
         return res.status(200).json({
             link: response.data.data.link,
             tx_ref: response.data.data.tx_ref
@@ -234,6 +236,8 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
                 { eventId, guest }
             );
         }
+
+        console.log("during verfication", data.status)
 
         return res.json({ status: "success" });
 
