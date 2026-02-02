@@ -85,41 +85,25 @@ export const getSingleEvent = async (req, res) => {
 
 
 
-// Accept both authed user and guest for event payment checkout link creation
+// Authenticated users only - register for event payment
 export const registerEventPayment = async (req, res) => {
-
-    console.log("BODY RECEIVED:", req.body);
-
     try {
         const { eventId } = req.body;
+        const userId = req.user.id;
+        const email = req.user.email;
+        const name = req.user.name;
 
-        const isGuest = !req.user;
-        let userId: string | undefined;
-        let email: string | undefined;
-        let name: string | undefined;
-
-        if (isGuest) {
-            email = req.body.email;
-            name = req.body.name;
-        } else {
-            userId = req.user.id;
-            email = req.user.email;
-            name = req.user.name;
+        if (!userId || !email || !name) {
+            return res.status(401).json({ message: "Authentication required" });
         }
 
         const event = await Event.findById(eventId);
         if (!event) return res.status(404).json({ message: "Event not found" });
 
-        // Free events: only authed users, no guests
+        const userObjectId = new Types.ObjectId(userId);
+
+        // Free events: register directly
         if (!event.isPaid || event.price === 0) {
-            if (isGuest) {
-                return res.status(400).json({ message: "Guests can't register for free events. Please sign up." });
-            }
-            // Compare using equals for ObjectId, not .includes on string
-            if (!userId) {
-                return res.status(400).json({ message: "User ID is required for registration." });
-            }
-            const userObjectId = new Types.ObjectId(userId);
             const alreadyRegistered = event.registeredUsers.some(
                 (u) => u.equals(userObjectId)
             );
@@ -127,10 +111,18 @@ export const registerEventPayment = async (req, res) => {
                 event.registeredUsers.push(userObjectId);
                 await event.save();
             }
-            return res.status(200).json({ message: "Registered (Free Event)" });
+            return res.status(200).json({ message: "Registered for free event" });
         }
 
-        // Paid events: Payment link for user or guest.
+        // Check if already paid
+        const alreadyPaid = event.payments.some(
+            (p) => p.user.equals(userObjectId) && p.status === "successful"
+        );
+        if (alreadyPaid) {
+            return res.status(400).json({ message: "You have already paid for this event" });
+        }
+
+        // Paid events: create payment link
         const tx_ref = `EVT-${eventId}-${Date.now()}`;
         const payload = {
             tx_ref,
@@ -143,16 +135,11 @@ export const registerEventPayment = async (req, res) => {
             },
             meta: {
                 eventId,
-                userId: userId || null,
-                guest: isGuest
-                    ? { name: name || null, email: email || null }
-                    : null
+                userId
             }
         };
 
         const response = await flw.post("/payments", payload);
-
-        console.log("registering...", response)
 
         return res.status(200).json({
             link: response.data.data.link,
@@ -160,69 +147,101 @@ export const registerEventPayment = async (req, res) => {
         });
 
     } catch (error: any) {
-        console.error("Flutterwave error:", error.response?.data || error);
-
-        const message =
-            (error?.response?.data?.message) ||
-            error?.message ||
-            "Payment initiation failed";
+        console.error("Event payment error:", error.response?.data || error);
+        const message = error?.response?.data?.message || error?.message || "Payment initiation failed";
         return res.status(500).json({ message });
     }
 }
 
-// Update verifyEventPayment to handle guest registration & payment record using Event.ts guest fields
+// Verify event payment - authenticated users only
 export const verifyEventPayment = async (req: Request, res: Response) => {
     try {
         const transaction_id = req.query.transaction_id as string;
-        if (!transaction_id) {
-            return res.status(400).json({ status: "failed", message: "Missing transaction_id" });
+        
+        if (!transaction_id || transaction_id.trim() === "") {
+            return res.status(400).json({ 
+                status: "failed", 
+                message: "Transaction ID is required for payment verification" 
+            });
         }
 
         // Verify with Flutterwave
-        const fwRes = await flw.get(`/transactions/${transaction_id}/verify`);
+        let fwRes;
+        try {
+            fwRes = await flw.get(`/transactions/${transaction_id}/verify`);
+        } catch (flwError: any) {
+            console.error("Flutterwave API error:", flwError.message);
+            
+            if (flwError.code === 'ECONNREFUSED' || flwError.code === 'ETIMEDOUT' || flwError.code === 'ENOTFOUND') {
+                return res.status(500).json({
+                    status: "failed",
+                    message: "Payment verification service is temporarily unavailable. Please try again in a few moments."
+                });
+            }
+            
+            if (flwError.response?.status === 404) {
+                return res.status(404).json({
+                    status: "failed",
+                    message: "Transaction not found. Please verify your transaction ID.",
+                    transactionId: transaction_id
+                });
+            }
+            
+            return res.status(500).json({
+                status: "failed",
+                message: "Unable to verify payment at this time. Please try again later or contact support."
+            });
+        }
+        
         const data = fwRes?.data?.data;
 
         if (!data || data.status !== "successful") {
-            return res.status(400).json({ status: "failed" });
+            return res.status(400).json({ 
+                status: "failed",
+                message: "Payment was not successful",
+                transactionId: data?.id || transaction_id
+            });
         }
 
-        const { eventId, userId, guest } = data.meta || {};
-        if (!eventId || (!userId && !guest)) {
-            return res.status(400).json({ status: "failed", message: "Invalid metadata" });
+        const { eventId, userId } = data.meta || {};
+        if (!eventId || !userId) {
+            return res.status(400).json({ 
+                status: "failed", 
+                message: "Invalid payment metadata - user authentication required",
+                transactionId: data.id
+            });
         }
 
         const event = await Event.findById(eventId);
         if (!event) {
-            return res.status(404).json({ status: "failed", message: "Event not found" });
+            return res.status(404).json({ 
+                status: "failed", 
+                message: "Event not found",
+                transactionId: data.id
+            });
         }
 
         // Prevent duplicate processing
         const alreadyProcessed = event.payments.some(
             (p) => String(p.transactionId) === String(data.id)
         );
+        
         if (!alreadyProcessed) {
-            if (userId) {
-                const userObjectId = new Types.ObjectId(userId);
-                if (!event.registeredUsers.some((u) => u.equals(userObjectId))) {
-                    event.registeredUsers.push(userObjectId);
-                }
-
-                event.payments.push({
-                    user: userObjectId,
-                    transactionId: data.id,
-                    amount: data.amount,
-                    status: data.status,
-                    date: new Date(data.completed_at),
-                });
-            } else {
-                event.payments.push({
-                    guest: { name: guest.name, email: guest.email },
-                    transactionId: data.id,
-                    amount: data.amount,
-                    status: data.status,
-                    date: new Date(data.completed_at),
-                });
+            const userObjectId = new Types.ObjectId(userId);
+            
+            // Add to registered users if not already there
+            if (!event.registeredUsers.some((u) => u.equals(userObjectId))) {
+                event.registeredUsers.push(userObjectId);
             }
+
+            // Add payment record
+            event.payments.push({
+                user: userObjectId,
+                transactionId: data.id,
+                amount: data.amount,
+                status: data.status,
+                date: new Date(data.completed_at),
+            });
 
             await event.save();
         }
@@ -230,36 +249,28 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
         // Payment history (idempotent)
         const historyExists = await PaymentHistory.findOne({ transactionId: data.id });
         if (!historyExists) {
-            await savePaymentHistory(
-                userId || null,
-                "event",
-                data.id,
-                data.amount,
-                data.currency,
-                data.status,
-                { eventId, guest }
-            );
+            try {
+                await savePaymentHistory(
+                    userId,
+                    "event",
+                    data.id,
+                    data.amount,
+                    data.currency,
+                    data.status,
+                    { eventId, eventTitle: event.title }
+                );
+            } catch (historyError) {
+                console.error("Failed to save payment history:", historyError);
+                // Continue - payment is recorded in event
+            }
         }
 
         // Send confirmation email
         try {
-            let recipientEmail = "";
-            let recipientName = "";
-
-            if (userId) {
-                const user = await User.findById(userId);
-                if (user) {
-                    recipientEmail = user.email;
-                    recipientName = user.name;
-                }
-            } else if (guest) {
-                recipientEmail = guest.email;
-                recipientName = guest.name;
-            }
-
-            if (recipientEmail) {
+            const user = await User.findById(userId);
+            if (user) {
                 const emailContent = eventPaymentEmail(
-                    recipientName,
+                    user.name,
                     event.title,
                     event.date,
                     event.location,
@@ -269,7 +280,7 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
                 );
 
                 const htmlContent = eventPaymentEmailHTML(
-                    recipientName,
+                    user.name,
                     event.title,
                     event.date,
                     event.location,
@@ -279,7 +290,7 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
                 );
 
                 await sendEmail({
-                    to: recipientEmail,
+                    to: user.email,
                     subject: emailContent.subject,
                     text: emailContent.text,
                     html: htmlContent,
@@ -287,45 +298,110 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
             }
         } catch (emailError) {
             console.error("Failed to send event confirmation email:", emailError);
-            // Don't fail the request if email fails
         }
 
-        console.log("during verfication", data.status)
-
-        return res.json({ status: "successful" });
+        return res.json({ 
+            status: "successful",
+            message: "Payment verified successfully",
+            transactionId: data.id,
+            event: {
+                id: event._id,
+                title: event.title,
+                date: event.date,
+                location: event.location,
+                imageUrl: event.imageUrl
+            }
+        });
 
     } catch (err) {
         console.error("Verify payment error:", err);
-        return res.status(500).json({ status: "failed" });
+        return res.status(500).json({ 
+            status: "failed",
+            message: "Payment verification failed"
+        });
     }
 };
 
 export const getEventPaymentStatus = async (req: Request, res: Response) => {
     try {
-        const { eventId, email } = req.query;
+        const { eventId } = req.query;
+        const userId = req.user?.id;
 
-        if (!eventId || !email) {
-            return res.status(400).json({ message: "eventId and email are required" });
+        if (!eventId) {
+            return res.status(400).json({ message: "eventId is required" });
+        }
+
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
         }
 
         const event = await Event.findById(eventId);
         if (!event) return res.status(404).json({ message: "Event not found" });
 
-        // Check if payment exists for this user/guest
+        const userObjectId = new Types.ObjectId(userId);
+
+        // Check if user has paid for this event
         const payment = event.payments.find((p) =>
-            (p.user && p.user.toString() === email) ||  // if userId stored as email (adjust if you store ObjectId)
-            (p.guest && p.guest.email === email)
+            p.user.equals(userObjectId) && p.status === "successful"
         );
 
         if (!payment) {
-            return res.status(200).json({ paid: false, status: "not found" });
+            return res.status(200).json({ 
+                paid: false, 
+                registered: event.registeredUsers.some(u => u.equals(userObjectId))
+            });
         }
 
         return res.status(200).json({
-            paid: payment.status === "successful",
+            paid: true,
             status: payment.status,
+            amount: payment.amount,
+            transactionId: payment.transactionId,
+            date: payment.date
         });
     } catch (error: any) {
+        return res.status(500).json({ message: error.message });
+    }
+};
+
+export const getUserEvents = async (req: Request, res: Response) => {
+    try {
+        const userId = req.user?.id;
+
+        if (!userId) {
+            return res.status(401).json({ message: "Authentication required" });
+        }
+
+        const userObjectId = new Types.ObjectId(userId);
+
+        // Find all events where user is registered
+        const events = await Event.find({
+            registeredUsers: userObjectId
+        }).sort({ date: -1 });
+
+        // Add payment info for each event
+        const eventsWithPaymentInfo = events.map(event => {
+            const payment = event.payments.find(p => 
+                p.user.equals(userObjectId) && p.status === "successful"
+            );
+
+            return {
+                ...event.toObject(),
+                userPayment: payment ? {
+                    amount: payment.amount,
+                    transactionId: payment.transactionId,
+                    date: payment.date
+                } : null
+            };
+        });
+
+        return res.status(200).json({
+            success: true,
+            count: eventsWithPaymentInfo.length,
+            events: eventsWithPaymentInfo
+        });
+    } catch (error: any) {
+        console.error("Get user events error:", error);
         return res.status(500).json({ message: error.message });
     }
 };

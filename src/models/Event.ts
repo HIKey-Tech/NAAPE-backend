@@ -1,11 +1,7 @@
 import mongoose, { Schema, Document, Types } from "mongoose";
 
 export interface IEventPayment {
-    user?: Types.ObjectId;
-    guest?: {
-        name: string;
-        email: string;
-    };
+    user: Types.ObjectId;
     transactionId: string;
     amount: number;
     status: string;
@@ -30,11 +26,7 @@ export interface IEvent extends Document {
 
 const EventPaymentSchema = new Schema<IEventPayment>(
     {
-        user: { type: Schema.Types.ObjectId, ref: "User", required: false },
-        guest: {
-            name: { type: String, required: false },
-            email: { type: String, required: false }
-        },
+        user: { type: Schema.Types.ObjectId, ref: "User", required: true },
         transactionId: { type: String, required: true },
         amount: { type: Number, required: true },
         status: { type: String, required: true },

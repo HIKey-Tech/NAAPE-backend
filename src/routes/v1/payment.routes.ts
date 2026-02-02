@@ -42,15 +42,15 @@ router.post("/token-charges", createTokenizedCharge);
 router.post("/recipients", createRecipient);
 router.post("/transfers", createTransfer);
 
-//Events verify and register
-
-router.post("/events/register",  registerEventPayment);
-router.get("/events/verify",  verifyEventPayment);
+//Events verify and register (authenticated users only)
+router.post("/events/register", protect, registerEventPayment);
+router.get("/events/verify", verifyEventPayment);
 
 //Payment History
 router.get("/history/:userId", protect, getPaymentHistory);
-// New route
-router.get("/events/status", getEventPaymentStatus);
+
+//Event payment status (authenticated users only)
+router.get("/events/status", protect, getEventPaymentStatus);
 
 
 

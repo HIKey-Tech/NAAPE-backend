@@ -1,7 +1,7 @@
 import PaymentHistory from "../models/PaymentHistory";
 
 export const savePaymentHistory = async (
-    userId: string | null,
+    userId: string,
     type: string,
     transactionId: string,
     amount: number,
