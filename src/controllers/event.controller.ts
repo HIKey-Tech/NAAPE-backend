@@ -5,6 +5,10 @@ import { flw } from "../utils/flw.client";
 import { Request, Response } from "express";
 import { Types } from "mongoose";
 import { savePaymentHistory } from "../utils/savePaymentHistory";
+import sendEmail from "../utils/sendEmail";
+import { eventPaymentEmail } from "../utils/emailTemplates";
+import { eventPaymentEmailHTML } from "../utils/emailTemplatesHTML";
+import User from "../models/User";
 
 
 export const createEvent = async (req, res) => {
@@ -235,6 +239,55 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
                 data.status,
                 { eventId, guest }
             );
+        }
+
+        // Send confirmation email
+        try {
+            let recipientEmail = "";
+            let recipientName = "";
+
+            if (userId) {
+                const user = await User.findById(userId);
+                if (user) {
+                    recipientEmail = user.email;
+                    recipientName = user.name;
+                }
+            } else if (guest) {
+                recipientEmail = guest.email;
+                recipientName = guest.name;
+            }
+
+            if (recipientEmail) {
+                const emailContent = eventPaymentEmail(
+                    recipientName,
+                    event.title,
+                    event.date,
+                    event.location,
+                    data.amount,
+                    data.currency,
+                    data.id
+                );
+
+                const htmlContent = eventPaymentEmailHTML(
+                    recipientName,
+                    event.title,
+                    event.date,
+                    event.location,
+                    data.amount,
+                    data.currency,
+                    data.id
+                );
+
+                await sendEmail({
+                    to: recipientEmail,
+                    subject: emailContent.subject,
+                    text: emailContent.text,
+                    html: htmlContent,
+                });
+            }
+        } catch (emailError) {
+            console.error("Failed to send event confirmation email:", emailError);
+            // Don't fail the request if email fails
         }
 
         console.log("during verfication", data.status)

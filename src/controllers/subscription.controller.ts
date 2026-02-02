@@ -3,6 +3,11 @@ import { flw } from "../utils/flw.client";
 import { savePaymentHistory } from "../utils/savePaymentHistory";
 import { Subscription } from "../models/Subscription";
 import { Plan } from "../models/Plan";
+import PaymentHistory from "../models/PaymentHistory";
+import sendEmail from "../utils/sendEmail";
+import { subscriptionPaymentEmail } from "../utils/emailTemplates";
+import { subscriptionPaymentEmailHTML } from "../utils/emailTemplatesHTML";
+import User from "../models/User";
 
 /**
  * Create a plan
@@ -248,5 +253,251 @@ export async function getAllPlans(req: Request, res: Response) {
         res.status(500).json({ message: error.message || "Failed to fetch plans" });
     }
 }
+
+/**
+ * Verify subscription payment after Flutterwave redirect
+ * GET /api/payments/subscription/verify?transaction_id=xxx
+ */
+export const verifySubscriptionPayment = async (req: Request, res: Response) => {
+    try {
+        const transaction_id = req.query.transaction_id as string;
+        const user = req.user;
+
+        if (!transaction_id) {
+            return res.status(400).json({ 
+                status: "failed", 
+                message: "Missing transaction_id" 
+            });
+        }
+
+        if (!user) {
+            return res.status(401).json({ 
+                status: "failed", 
+                message: "Unauthorized" 
+            });
+        }
+
+        // Verify with Flutterwave
+        const fwRes = await flw.get(`/transactions/${transaction_id}/verify`);
+        const data = fwRes?.data?.data;
+
+        if (!data || data.status !== "successful") {
+            return res.status(400).json({ 
+                status: "failed",
+                message: "Payment verification failed" 
+            });
+        }
+
+        // Extract tx_ref to get user and tier info
+        const txRef = data.tx_ref;
+        
+        // Check if subscription already exists for this transaction
+        const existingHistory = await PaymentHistory.findOne({ 
+            transactionId: data.id 
+        });
+        
+        if (existingHistory) {
+            return res.json({ 
+                status: "successful",
+                message: "Payment already processed",
+                alreadyProcessed: true
+            });
+        }
+
+        // Find the plan based on the amount paid
+        const plan = await Plan.findOne({ 
+            price: data.amount,
+            isActive: true 
+        });
+
+        if (!plan) {
+            return res.status(404).json({ 
+                status: "failed",
+                message: "Plan not found for this payment amount" 
+            });
+        }
+
+        // Check if user already has an active subscription
+        let subscription = await Subscription.findOne({
+            userId: user._id,
+            status: "active"
+        });
+
+        if (subscription) {
+            // Update existing subscription
+            subscription.planId = plan._id as any;
+            subscription.tier = plan.name;
+            subscription.planName = plan.name;
+            subscription.flutterwavePlanId = plan.flutterwavePlanId;
+            subscription.price = plan.price;
+            subscription.currency = plan.currency;
+            subscription.interval = plan.interval;
+            subscription.features = plan.features;
+            subscription.startDate = new Date();
+            
+            // Calculate end date based on interval
+            const endDate = new Date();
+            if (plan.interval === "monthly") {
+                endDate.setMonth(endDate.getMonth() + 1);
+            } else if (plan.interval === "yearly") {
+                endDate.setFullYear(endDate.getFullYear() + 1);
+            }
+            subscription.endDate = endDate;
+            
+            await subscription.save();
+        } else {
+            // Create new subscription
+            const endDate = new Date();
+            if (plan.interval === "monthly") {
+                endDate.setMonth(endDate.getMonth() + 1);
+            } else if (plan.interval === "yearly") {
+                endDate.setFullYear(endDate.getFullYear() + 1);
+            }
+
+            subscription = await Subscription.create({
+                userId: user._id,
+                planId: plan._id,
+                email: user.email,
+                tier: plan.name,
+                status: "active",
+                startDate: new Date(),
+                endDate: endDate,
+                planName: plan.name,
+                flutterwavePlanId: plan.flutterwavePlanId,
+                price: plan.price,
+                currency: plan.currency,
+                interval: plan.interval,
+                features: plan.features,
+                isActive: true,
+            });
+        }
+
+        // Save payment history
+        await savePaymentHistory(
+            user._id.toString(),
+            "subscription",
+            data.id,
+            data.amount,
+            data.currency,
+            data.status,
+            {
+                subscriptionId: subscription._id,
+                planId: plan._id,
+                planName: plan.name,
+                tier: plan.name,
+                txRef: data.tx_ref,
+            }
+        );
+
+        // Send confirmation email
+        try {
+            const emailContent = subscriptionPaymentEmail(
+                user.name,
+                plan.name,
+                data.amount,
+                data.currency,
+                data.id,
+                subscription.startDate!,
+                subscription.endDate!
+            );
+
+            const htmlContent = subscriptionPaymentEmailHTML(
+                user.name,
+                plan.name,
+                data.amount,
+                data.currency,
+                data.id,
+                subscription.startDate!,
+                subscription.endDate!
+            );
+
+            await sendEmail({
+                to: user.email,
+                subject: emailContent.subject,
+                text: emailContent.text,
+                html: htmlContent,
+            });
+        } catch (emailError) {
+            console.error("Failed to send subscription confirmation email:", emailError);
+            // Don't fail the request if email fails
+        }
+
+        return res.json({ 
+            status: "successful",
+            message: "Subscription activated successfully",
+            subscription: {
+                tier: subscription.tier,
+                startDate: subscription.startDate,
+                endDate: subscription.endDate,
+            }
+        });
+
+    } catch (err: any) {
+        console.error("Verify subscription payment error:", err);
+        return res.status(500).json({ 
+            status: "failed",
+            message: "Payment verification failed",
+            error: err.message 
+        });
+    }
+};
+
+/**
+ * Get current user's subscription status
+ * GET /api/subscription/status
+ */
+export const getSubscriptionStatus = async (req: Request, res: Response) => {
+    try {
+        const user = req.user;
+        
+        if (!user) {
+            return res.status(401).json({ error: "Unauthorized" });
+        }
+
+        const subscription = await Subscription.findOne({
+            userId: user._id,
+            status: "active",
+        }).populate("planId");
+
+        if (!subscription) {
+            return res.json({
+                hasSubscription: false,
+                status: "none",
+                tier: null,
+                message: "No active subscription"
+            });
+        }
+
+        // Check if subscription has expired
+        if (subscription.endDate && new Date() > subscription.endDate) {
+            subscription.status = "cancelled";
+            await subscription.save();
+            
+            return res.json({
+                hasSubscription: false,
+                status: "expired",
+                tier: null,
+                message: "Subscription has expired"
+            });
+        }
+
+        return res.json({
+            hasSubscription: true,
+            status: subscription.status,
+            tier: subscription.tier,
+            planName: subscription.planName,
+            startDate: subscription.startDate,
+            endDate: subscription.endDate,
+            features: subscription.features,
+            interval: subscription.interval,
+        });
+
+    } catch (err: any) {
+        console.error("Get subscription status error:", err);
+        return res.status(500).json({ 
+            error: "Failed to fetch subscription status" 
+        });
+    }
+};
 
 

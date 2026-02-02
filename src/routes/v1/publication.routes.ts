@@ -12,10 +12,11 @@ import {
 import { optionalProtect, protect } from "../../middleware/auth.middleware";
 import { authorizeRoles } from "../../middleware/role.middleware";
 import { upload } from "../../config/multer";
+import { requireSubscription } from "../../middleware/require.subscription.middleware";
 
 const router = express.Router();
 
-// Public route
+// Public route - anyone can view approved publications
 router.get("/", getAllPublications);
 
 // Protected route for logged-in users (fetch all my publications)
@@ -26,11 +27,19 @@ router.get(
     getMyPublications
 );
 
-// Create new publication (Members/Admins/Editors)
+// Create new publication - REQUIRES ACTIVE SUBSCRIPTION for members
 router.post(
     "/",
     protect,
     authorizeRoles("admin", "editor", "member"),
+    (req, res, next) => {
+        // Admins and editors bypass subscription check
+        if (req.user && (req.user.role === "admin" || req.user.role === "editor")) {
+            return next();
+        }
+        // Members need active subscription
+        return requireSubscription(req, res, next);
+    },
     (req, res, next) => {
         const contentType = req.headers["content-type"] || "";
         if (contentType.startsWith("multipart/form-data")) {
@@ -42,10 +51,18 @@ router.post(
     createPublication
 );
 
-// Fetch a specific publication belonging to logged-in user
+// Fetch a specific publication - REQUIRES ACTIVE SUBSCRIPTION for members to view
 router.get(
     "/:id",
-    // optionalProtect,
+    protect,
+    (req, res, next) => {
+        // Admins and editors bypass subscription check
+        if (req.user && (req.user.role === "admin" || req.user.role === "editor")) {
+            return next();
+        }
+        // Members need active subscription
+        return requireSubscription(req, res, next);
+    },
     getSinglePublication
 );
 

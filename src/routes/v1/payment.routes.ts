@@ -2,7 +2,7 @@
 import { Router } from "express";
 
 import { createPayment } from "../../controllers/payment.controller";
-import { createPlan,  initializeSubscriptionPayment } from "../../controllers/subscription.controller";
+import { createPlan,  initializeSubscriptionPayment, verifySubscriptionPayment, getSubscriptionStatus } from "../../controllers/subscription.controller";
 import { chargeAndTokenize, createTokenizedCharge } from "../../controllers/token.controller";
 import { createRecipient, createTransfer } from "../../controllers/transfer.controller";
 import { handleWebhook } from "../../controllers/webhook";
@@ -22,6 +22,16 @@ router.post(
     "/subscription/initialize-payment",
     protect,
     initializeSubscriptionPayment
+);
+router.get(
+    "/subscription/verify",
+    protect,
+    verifySubscriptionPayment
+);
+router.get(
+    "/subscription/status",
+    protect,
+    getSubscriptionStatus
 );
 
 // Tokenization
