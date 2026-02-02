@@ -234,13 +234,22 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
                 event.registeredUsers.push(userObjectId);
             }
 
+            // Parse payment date safely
+            let paymentDate = new Date();
+            if (data.completed_at) {
+                const parsedDate = new Date(data.completed_at);
+                if (!isNaN(parsedDate.getTime())) {
+                    paymentDate = parsedDate;
+                }
+            }
+
             // Add payment record
             event.payments.push({
                 user: userObjectId,
                 transactionId: data.id,
                 amount: data.amount,
                 status: data.status,
-                date: new Date(data.completed_at),
+                date: paymentDate,
             });
 
             await event.save();
