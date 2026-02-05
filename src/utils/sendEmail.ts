@@ -14,6 +14,9 @@ interface EmailOptions {
 
 const sendEmail = async ({ to, subject, text, html }: EmailOptions) => {
     try {
+        console.log(`[EMAIL] Attempting to send email to: ${to}`);
+        console.log(`[EMAIL] Subject: ${subject}`);
+        
         const msg = {
             to,
             from: {
@@ -26,11 +29,11 @@ const sendEmail = async ({ to, subject, text, html }: EmailOptions) => {
         };
 
         await sgMail.send(msg);
-        console.log(`Email sent successfully to ${to}`);
+        console.log(`[EMAIL] ✓ Email sent successfully to ${to}`);
     } catch (error: any) {
-        console.error("SendGrid email error:", error);
+        console.error(`[EMAIL] ✗ SendGrid email error for ${to}:`, error);
         if (error.response) {
-            console.error("SendGrid error details:", error.response.body);
+            console.error("[EMAIL] SendGrid error details:", error.response.body);
         }
         throw error;
     }

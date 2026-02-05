@@ -60,9 +60,7 @@ export const loginUser = async (req: Request, res: Response) => {
         }
 
         if (await user.matchePassword(password)) {
-            // Send login notification email (optional - can be disabled if too frequent)
-            // Uncomment the following block if you want login notifications
-            /*
+            // Send login notification email
             try {
                 const { loginNotificationEmailHTML } = await import("../utils/emailTemplatesHTML");
                 await sendEmail({
@@ -71,10 +69,10 @@ export const loginUser = async (req: Request, res: Response) => {
                     text: `Dear ${user.name},\n\nA new login was detected on your account at ${new Date().toLocaleString()}.\n\nIf this wasn't you, please secure your account immediately.\n\nBest regards,\nThe NAAPE Team`,
                     html: loginNotificationEmailHTML(user.name, new Date(), req.ip)
                 });
+                console.log(`Login notification email sent to ${user.email}`);
             } catch (emailError) {
                 console.error("Failed to send login notification:", emailError);
             }
-            */
 
             res.status(200).json({
                 _id: user._id,
