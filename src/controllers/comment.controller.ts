@@ -1,5 +1,9 @@
 import { Request, Response } from "express";
 import Comment from "../models/Comment";
+import Publication from "../models/Publication";
+import User from "../models/User";
+import sendEmail from "../utils/sendEmail";
+import { commentNotificationEmailHTML } from "../utils/emailTemplatesHTML";
 
 export const addComment = async (req: Request, res: Response) => {
     try {
@@ -17,6 +21,34 @@ export const addComment = async (req: Request, res: Response) => {
             user: userId,
             text,
         });
+
+        // Get publication and author details
+        const publication = await Publication.findById(publicationId).populate("author", "name email");
+        const commenter = await User.findById(userId);
+
+        // Send email notification to publication author
+        if (publication && commenter) {
+            const author = publication.author as any;
+            // Only send if commenter is not the author
+            if (author && author._id.toString() !== userId.toString()) {
+                try {
+                    await sendEmail({
+                        to: author.email,
+                        subject: "New Comment on Your Publication",
+                        text: `Dear ${author.name},\n\n${commenter.name} has commented on your publication "${publication.title}".\n\nComment: "${text}"\n\nBest regards,\nThe NAAPE Team`,
+                        html: commentNotificationEmailHTML(
+                            author.name,
+                            publication.title,
+                            commenter.name,
+                            text,
+                            publicationId
+                        )
+                    });
+                } catch (emailError) {
+                    console.error("Failed to send comment notification:", emailError);
+                }
+            }
+        }
 
         res.status(201).json({
             message: "Comment added",

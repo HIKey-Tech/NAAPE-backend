@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import User from "../models/User";
 import { generateToken } from "../utils/generateToken";
+import sendEmail from "../utils/sendEmail";
+import { welcomeEmailHTML } from "../utils/emailTemplatesHTML";
 // import { OAuth2Client } from "google-auth-library";
 
 export const registerUser = async (req: Request, res: Response) => {
@@ -8,6 +10,19 @@ export const registerUser = async (req: Request, res: Response) => {
         const { name, email, password, role } = req.body;
         const normalizedEmail = email.trim().toLowerCase();
         const user = await User.create({ name, email: normalizedEmail, password, role });
+
+        // Send welcome email
+        try {
+            await sendEmail({
+                to: user.email,
+                subject: "Welcome to NAAPE - Account Created Successfully",
+                text: `Dear ${user.name},\n\nWelcome to the Nigerian Association of Aircraft Pilots and Engineers (NAAPE)! Your account has been created successfully.\n\nBest regards,\nThe NAAPE Team`,
+                html: welcomeEmailHTML(user.name, user.email)
+            });
+        } catch (emailError) {
+            console.error("Failed to send welcome email:", emailError);
+            // Don't fail registration if email fails
+        }
 
         res.status(201).json({
             message: "Account Created successfully",
@@ -45,6 +60,22 @@ export const loginUser = async (req: Request, res: Response) => {
         }
 
         if (await user.matchePassword(password)) {
+            // Send login notification email (optional - can be disabled if too frequent)
+            // Uncomment the following block if you want login notifications
+            /*
+            try {
+                const { loginNotificationEmailHTML } = await import("../utils/emailTemplatesHTML");
+                await sendEmail({
+                    to: user.email,
+                    subject: "New Login to Your NAAPE Account",
+                    text: `Dear ${user.name},\n\nA new login was detected on your account at ${new Date().toLocaleString()}.\n\nIf this wasn't you, please secure your account immediately.\n\nBest regards,\nThe NAAPE Team`,
+                    html: loginNotificationEmailHTML(user.name, new Date(), req.ip)
+                });
+            } catch (emailError) {
+                console.error("Failed to send login notification:", emailError);
+            }
+            */
+
             res.status(200).json({
                 _id: user._id,
                 name: user.name,

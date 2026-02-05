@@ -7,7 +7,11 @@ import { Types } from "mongoose";
 import { savePaymentHistory } from "../utils/savePaymentHistory";
 import sendEmail from "../utils/sendEmail";
 import { eventPaymentEmail } from "../utils/emailTemplates";
-import { eventPaymentEmailHTML } from "../utils/emailTemplatesHTML";
+import { 
+    eventPaymentEmailHTML, 
+    eventRegistrationFreeEmailHTML,
+    newEventNotificationEmailHTML 
+} from "../utils/emailTemplatesHTML";
 import User from "../models/User";
 
 
@@ -29,8 +33,6 @@ export const createEvent = async (req, res) => {
 
         const adminId = req.user.id;
 
-        
-
         const event = await Event.create({
             title,
             date,
@@ -49,6 +51,34 @@ export const createEvent = async (req, res) => {
             type: "event",
             user: req.user._id,
         });
+
+        // Notify all members about new event
+        try {
+            const members = await User.find({ role: { $in: ["member", "editor", "admin"] } }).limit(100);
+            for (const member of members) {
+                try {
+                    await sendEmail({
+                        to: member.email,
+                        subject: `New Event: ${title}`,
+                        text: `Dear ${member.name},\n\nWe are excited to announce a new event: "${title}".\n\nDate: ${new Date(date).toLocaleDateString()}\nLocation: ${location}\n\nVisit NAAPE to register now!\n\nBest regards,\nThe NAAPE Team`,
+                        html: newEventNotificationEmailHTML(
+                            member.name,
+                            title,
+                            new Date(date),
+                            location,
+                            description || "Join us for this exciting event!",
+                            price || 0,
+                            currency || "NGN",
+                            String(event._id)
+                        )
+                    });
+                } catch (emailError) {
+                    console.error(`Failed to send event notification to ${member.email}:`, emailError);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to notify members about new event:", error);
+        }
 
         res.status(201).json({
             message: "Event created successfully",
@@ -110,6 +140,27 @@ export const registerEventPayment = async (req, res) => {
             if (!alreadyRegistered) {
                 event.registeredUsers.push(userObjectId);
                 await event.save();
+
+                // Send free event registration confirmation email
+                try {
+                    const user = await User.findById(userId);
+                    if (user) {
+                        await sendEmail({
+                            to: user.email,
+                            subject: `Event Registration Confirmed - ${event.title}`,
+                            text: `Dear ${user.name},\n\nYour registration for "${event.title}" has been confirmed.\n\nDate: ${event.date.toLocaleDateString()}\nLocation: ${event.location}\n\nWe look forward to seeing you!\n\nBest regards,\nThe NAAPE Team`,
+                            html: eventRegistrationFreeEmailHTML(
+                                user.name,
+                                event.title,
+                                event.date,
+                                event.location,
+                                String(event._id)
+                            )
+                        });
+                    }
+                } catch (emailError) {
+                    console.error("Failed to send free event confirmation email:", emailError);
+                }
             }
             return res.status(200).json({ message: "Registered for free event" });
         }
@@ -295,7 +346,8 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
                     event.location,
                     data.amount,
                     data.currency,
-                    data.id
+                    data.id,
+                    String(event._id)
                 );
 
                 await sendEmail({

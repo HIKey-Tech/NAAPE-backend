@@ -2,7 +2,16 @@ import { Types } from "mongoose";
 import { Request, Response } from "express";
 import Publication from "../models/Publication";
 import Notification from "../models/Notification";
+import User from "../models/User";
 import mongoose from "mongoose";
+import sendEmail from "../utils/sendEmail";
+import { 
+    publicationSubmittedEmailHTML, 
+    adminPublicationNotificationEmailHTML,
+    publicationApprovedEmailHTML,
+    publicationRejectedEmailHTML,
+    newPublicationNotificationEmailHTML
+} from "../utils/emailTemplatesHTML";
 
 // Create new publication (Member)
 export const createPublication = async (req: Request, res: Response) => {
@@ -18,6 +27,48 @@ export const createPublication = async (req: Request, res: Response) => {
             image,
             author: authorId,
         });
+
+        // Get author details
+        const author = await User.findById(authorId);
+
+        // Send confirmation email to author
+        if (author) {
+            try {
+                await sendEmail({
+                    to: author.email,
+                    subject: "Publication Submitted Successfully",
+                    text: `Dear ${author.name},\n\nYour publication "${title}" has been submitted successfully and is now pending review.\n\nBest regards,\nThe NAAPE Team`,
+                    html: publicationSubmittedEmailHTML(author.name, title)
+                });
+            } catch (emailError) {
+                console.error("Failed to send publication submission email:", emailError);
+            }
+        }
+
+        // Notify all admins about new publication
+        try {
+            const admins = await User.find({ role: "admin" });
+            for (const admin of admins) {
+                try {
+                    await sendEmail({
+                        to: admin.email,
+                        subject: "New Publication Pending Review",
+                        text: `Dear ${admin.name},\n\nA new publication "${title}" by ${author?.name} has been submitted and requires review.\n\nBest regards,\nThe NAAPE System`,
+                        html: adminPublicationNotificationEmailHTML(
+                            admin.name,
+                            author?.name || "Unknown",
+                            title,
+                            String(publication._id)
+                        )
+                    });
+                } catch (emailError) {
+                    console.error(`Failed to send admin notification to ${admin.email}:`, emailError);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to notify admins:", error);
+        }
+
         res.status(201).json({
             message: "Publication submitted successfully and awaiting approval.",
             data: publication,
@@ -60,7 +111,7 @@ export const approvedPublication = async (req: Request, res: Response) => {
             id,
             { status: "approved" },
             { new: true }
-        );
+        ).populate("author", "name email");
 
         if (!publication) return res.status(404).json({ message: "Not found" });
 
@@ -70,6 +121,48 @@ export const approvedPublication = async (req: Request, res: Response) => {
             message: `"${publication.title}" has been approved by NAAPE admins.`,
             type: "publication",
         });
+
+        // Send approval email to author
+        const author = publication.author as any;
+        if (author && author.email) {
+            try {
+                await sendEmail({
+                    to: author.email,
+                    subject: "Publication Approved - Now Live on NAAPE",
+                    text: `Dear ${author.name},\n\nCongratulations! Your publication "${publication.title}" has been approved and is now live on the NAAPE platform.\n\nBest regards,\nThe NAAPE Team`,
+                    html: publicationApprovedEmailHTML(author.name, publication.title, String(publication._id))
+                });
+            } catch (emailError) {
+                console.error("Failed to send approval email:", emailError);
+            }
+        }
+
+        // Notify all members about new publication
+        try {
+            const members = await User.find({ role: { $in: ["member", "editor"] } }).limit(100);
+            for (const member of members) {
+                // Skip the author
+                if (String(member._id) === String((publication.author as any)._id)) continue;
+                
+                try {
+                    await sendEmail({
+                        to: member.email,
+                        subject: "New Publication Available on NAAPE",
+                        text: `Dear ${member.name},\n\nA new publication "${publication.title}" by ${author.name} is now available on NAAPE.\n\nBest regards,\nThe NAAPE Team`,
+                        html: newPublicationNotificationEmailHTML(
+                            member.name,
+                            publication.title,
+                            author.name,
+                            String(publication._id)
+                        )
+                    });
+                } catch (emailError) {
+                    console.error(`Failed to send notification to ${member.email}:`, emailError);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to notify members:", error);
+        }
 
         res.status(200).json({ message: "Publication approved", publication });
     } catch (error: any) {
@@ -81,20 +174,37 @@ export const approvedPublication = async (req: Request, res: Response) => {
 export const rejectPublication = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        const { reason } = req.body; // Optional rejection reason
+        
         const publication = await Publication.findByIdAndUpdate(
             id,
             { status: "rejected" },
             { new: true }
-        );
+        ).populate("author", "name email");
 
         if (!publication) return res.status(404).json({ message: "Not found" });
 
         await Notification.create({
             user: publication.author,
             title: "Publication Rejected",
-            message: `"${publication.title}" has been rejected by NAAPE admins.`,
+            message: `"${publication.title}" has been rejected by NAAPE admins.${reason ? ` Reason: ${reason}` : ''}`,
             type: "publication",
         });
+
+        // Send rejection email to author
+        const author = publication.author as any;
+        if (author && author.email) {
+            try {
+                await sendEmail({
+                    to: author.email,
+                    subject: "Publication Review Update",
+                    text: `Dear ${author.name},\n\nYour publication "${publication.title}" could not be approved at this time.${reason ? `\n\nReason: ${reason}` : ''}\n\nYou can revise and resubmit your publication.\n\nBest regards,\nThe NAAPE Team`,
+                    html: publicationRejectedEmailHTML(author.name, publication.title, reason)
+                });
+            } catch (emailError) {
+                console.error("Failed to send rejection email:", emailError);
+            }
+        }
 
         res.status(200).json({ message: "Publication rejected", publication });
     } catch (error: any) {

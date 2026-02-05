@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
 import News from "../models/News";
+import User from "../models/User";
+import sendEmail from "../utils/sendEmail";
+import { newNewsNotificationEmailHTML } from "../utils/emailTemplatesHTML";
 
 // Admin: Create News
 export const createNews = async (req: Request, res: Response) => {
@@ -15,6 +18,30 @@ export const createNews = async (req: Request, res: Response) => {
             image,
             author: authorId
         });
+
+        // Notify all members about new news
+        try {
+            const members = await User.find({ role: { $in: ["member", "editor", "admin"] } }).limit(100);
+            for (const member of members) {
+                try {
+                    await sendEmail({
+                        to: member.email,
+                        subject: "Latest News from NAAPE",
+                        text: `Dear ${member.name},\n\nNew content has been published: "${title}".\n\nVisit NAAPE to read more.\n\nBest regards,\nThe NAAPE Team`,
+                        html: newNewsNotificationEmailHTML(
+                            member.name,
+                            title,
+                            category,
+                            String(news._id)
+                        )
+                    });
+                } catch (emailError) {
+                    console.error(`Failed to send news notification to ${member.email}:`, emailError);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to notify members about news:", error);
+        }
 
         res.status(201).json({
             message: "News created successfully.",

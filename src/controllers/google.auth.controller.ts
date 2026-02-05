@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { OAuth2Client } from "google-auth-library";
 import User from "../models/User";
+import sendEmail from "../utils/sendEmail";
+import { welcomeEmailHTML } from "../utils/emailTemplatesHTML";
 
 const client = new OAuth2Client(
     process.env.GOOGLE_CLIENT_ID,
@@ -37,6 +39,7 @@ export const googleAuth = async (req: Request, res: Response) => {
 
         // Check if user exists
         let user = await User.findOne({ email });
+        let isNewUser = false;
 
         if (user) {
             // User exists - update Google info if not set
@@ -57,6 +60,7 @@ export const googleAuth = async (req: Request, res: Response) => {
             }
         } else {
             // Create new user
+            isNewUser = true;
             user = await User.create({
                 name: name || email.split("@")[0],
                 email,
@@ -70,6 +74,18 @@ export const googleAuth = async (req: Request, res: Response) => {
                     } : undefined
                 }
             });
+
+            // Send welcome email for new users
+            try {
+                await sendEmail({
+                    to: user.email,
+                    subject: "Welcome to NAAPE - Account Created Successfully",
+                    text: `Dear ${user.name},\n\nWelcome to the Nigerian Association of Aircraft Pilots and Engineers (NAAPE)! Your account has been created successfully using Google Sign-In.\n\nBest regards,\nThe NAAPE Team`,
+                    html: welcomeEmailHTML(user.name, user.email)
+                });
+            } catch (emailError) {
+                console.error("Failed to send welcome email:", emailError);
+            }
         }
 
         // Generate JWT token
