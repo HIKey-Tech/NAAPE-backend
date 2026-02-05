@@ -12,6 +12,13 @@ export const forgotPassword = async (req, res) => {
         });
     }
 
+    // Check if user is Google-authenticated
+    if (user.authProvider === "google" && !user.password) {
+        return res.status(400).json({
+            message: "This account uses Google Sign-In. Please sign in with Google.",
+        });
+    }
+
     const resetToken = user.getResetPasswordToken();
     await user.save({ validateBeforeSave: false });
 

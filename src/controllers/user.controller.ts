@@ -176,6 +176,13 @@ export const changePassword = async (req, res) => {
             return res.status(404).json({ message: "User not found." });
         }
 
+        // Check if user has a password (not Google-only user)
+        if (!user.password) {
+            return res.status(400).json({ 
+                message: "Cannot change password for Google-authenticated accounts." 
+            });
+        }
+
         // 3️⃣ Compare current password
         const isMatch = await bcrypt.compare(oldPassword, user.password);
 

@@ -68,7 +68,7 @@ const userSchema = new Schema<IUser>({
 }, { timestamps: true });
 
 userSchema.pre("save", async function (next) {
-    if (!this.isModified("password")) {
+    if (!this.isModified("password") || !this.password) {
         return next();
     }
     this.password = await bcrypt.hash(this.password, 10);
@@ -76,6 +76,9 @@ userSchema.pre("save", async function (next) {
 });
 
 userSchema.methods.matchePassword = async function (enteredPassword: string) {
+    if (!this.password) {
+        return false;
+    }
     return await bcrypt.compare(enteredPassword, this.password);
 };
 
