@@ -34,6 +34,7 @@ export interface IUser extends Document {
 
     matchePassword(enteredPassword: string): Promise<boolean>;
     generateAuthToken(): string;
+    getResetPasswordToken(): string;
 }
 
 const userSchema = new Schema<IUser>({

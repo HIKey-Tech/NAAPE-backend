@@ -12,7 +12,7 @@ export const forgotPassword = async (req, res) => {
         });
     }
 
-    const resetToken = user.resetPasswordToken;
+    const resetToken = user.getResetPasswordToken();
     await user.save({ validateBeforeSave: false });
 
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
@@ -42,4 +42,36 @@ export const forgotPassword = async (req, res) => {
 
         res.status(500).json({ message: "Email could not be sent" });
     }
+};
+
+export const resetPassword = async (req, res) => {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
+        return res.status(400).json({ message: "Password is required" });
+    }
+
+    const hashedToken = crypto
+        .createHash("sha256")
+        .update(token)
+        .digest("hex");
+
+    const user = await User.findOne({
+        resetPasswordToken: hashedToken,
+        resetPasswordExpire: { $gt: Date.now() },
+    });
+
+    if (!user) {
+        return res.status(400).json({ message: "Invalid or expired reset token" });
+    }
+
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save();
+
+    res.status(200).json({
+        message: "Password reset successful",
+    });
 };
