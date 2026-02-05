@@ -6,13 +6,15 @@ import cryptoLib from "crypto";
 export interface IUser extends Document {
     name: string;
     email: string;
-    password: string;
+    password?: string;
     createdAt: Date;
     updatedAt: Date;
     role: "admin" | "editor" | "member";
     isVerified: boolean;
     resetPasswordToken?: string;
     resetPasswordExpire?: Date;
+    googleId?: string;
+    authProvider?: "local" | "google";
 
     profile: {
         image?: {
@@ -40,11 +42,13 @@ export interface IUser extends Document {
 const userSchema = new Schema<IUser>({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+    password: { type: String, required: false },
     role: { type: String, enum: ["admin", "editor", "member"], default: "member" },
     isVerified: { type: Boolean, default: false },
     resetPasswordToken: { type: String },
     resetPasswordExpire: { type: Date },
+    googleId: { type: String },
+    authProvider: { type: String, enum: ["local", "google"], default: "local" },
     profile: {
     image: {
         url: { type: String },
