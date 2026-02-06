@@ -238,17 +238,6 @@ export const getThreadById = async (req: Request, res: Response) => {
     }
 };
 
-        res.status(200).json({
-            data: {
-                ...thread.toObject(),
-                replyCount,
-            },
-        });
-    } catch (error: any) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
 export const createThread = async (req: Request, res: Response) => {
     try {
         const userId = (req as any).user.id;
