@@ -160,7 +160,6 @@ export const getThreadById = async (req: Request, res: Response) => {
     try {
         const { threadId } = req.params;
         const userId = (req as any).user?.id;
-        const ipAddress = req.ip || req.socket.remoteAddress;
 
         const thread = await ForumThread.findById(threadId)
             .populate("author", "name email role")
@@ -170,29 +169,10 @@ export const getThreadById = async (req: Request, res: Response) => {
             return res.status(404).json({ message: "Thread not found" });
         }
 
-        // Track unique views using ThreadView model
-        try {
-            const viewData: any = { thread: threadId };
-            
-            if (userId) {
-                viewData.user = userId;
-            } else if (ipAddress) {
-                viewData.ipAddress = ipAddress;
-            }
-
-            // Try to create a view record (will fail silently if already exists due to unique index)
-            await ThreadView.create(viewData);
-            
-            // If view was created successfully, increment the counter
-            thread.views += 1;
-            await thread.save();
-        } catch (viewError: any) {
-            // View already exists (duplicate key error), don't increment
-            // This is expected behavior, not an error
-            if (viewError.code !== 11000) {
-                console.error("Error tracking view:", viewError);
-            }
-        }
+        // Simple view tracking: increment on each GET request
+        // In production, you'd want to use Redis or a proper session store
+        thread.views += 1;
+        await thread.save();
 
         const replyCount = await ForumReply.countDocuments({ thread: threadId });
 
