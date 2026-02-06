@@ -158,6 +158,7 @@ export const getAllThreads = async (req: Request, res: Response) => {
 export const getThreadById = async (req: Request, res: Response) => {
     try {
         const { threadId } = req.params;
+        const userId = (req as any).user?.id; // Get user ID if authenticated
 
         const thread = await ForumThread.findById(threadId)
             .populate("author", "name email role")
@@ -167,9 +168,19 @@ export const getThreadById = async (req: Request, res: Response) => {
             return res.status(404).json({ message: "Thread not found" });
         }
 
-        // Increment view count
-        thread.views += 1;
-        await thread.save();
+        // Only increment view count if user hasn't viewed this thread in this session
+        // Check if this is a new view (simple approach: increment only once per user per thread)
+        const hasViewed = req.session?.viewedThreads?.includes(threadId);
+        
+        if (!hasViewed) {
+            thread.views += 1;
+            await thread.save();
+            
+            // Track viewed threads in session
+            if (!req.session) req.session = {};
+            if (!req.session.viewedThreads) req.session.viewedThreads = [];
+            req.session.viewedThreads.push(threadId);
+        }
 
         const replyCount = await ForumReply.countDocuments({ thread: threadId });
 
