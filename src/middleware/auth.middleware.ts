@@ -57,21 +57,30 @@ export const optionalProtect = async (
 ) => {
     try {
         const authHeader = req.headers.authorization;
+        console.log("=== OPTIONAL PROTECT DEBUG ===");
+        console.log("Auth header:", authHeader);
 
         if (authHeader && authHeader.startsWith("Bearer ")) {
             const token = authHeader.split(" ")[1];
+            console.log("Token found:", token.substring(0, 20) + "...");
 
             const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+            console.log("Decoded token:", decoded);
 
             const user = await User.findById(decoded.id).select("-password");
+            console.log("User found:", user?._id);
 
             if (user) {
                 (req as any).user = user;
+                console.log("User attached to request");
             }
+        } else {
+            console.log("No auth header or invalid format");
         }
 
         next(); // Always proceed
     } catch (error) {
+        console.log("Error in optionalProtect:", error);
         next(); // Fail silently → guest access
     }
 };

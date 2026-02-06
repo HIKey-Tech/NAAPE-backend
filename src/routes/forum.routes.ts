@@ -15,7 +15,7 @@ import {
     updateReply,
     deleteReply,
 } from "../controllers/forum.controller";
-import { protect } from "../middleware/auth.middleware";
+import { protect, optionalProtect } from "../middleware/auth.middleware";
 import { authorizeRoles } from "../middleware/role.middleware";
 
 const router = express.Router();
@@ -27,7 +27,7 @@ router.post("/categories", protect, authorizeRoles("admin"), createCategory);
 // ============ THREADS ============
 router.get("/threads", getAllThreads);
 router.get("/threads/category/:categoryId", getThreadsByCategory);
-router.get("/threads/:threadId", getThreadById);
+router.get("/threads/:threadId", optionalProtect, getThreadById);
 router.post("/threads", protect, createThread);
 router.put("/threads/:threadId", protect, updateThread);
 router.delete("/threads/:threadId", protect, deleteThread);
