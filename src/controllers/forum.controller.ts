@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import ForumCategory from "../models/ForumCategory";
 import ForumThread from "../models/ForumThread";
 import ForumReply from "../models/ForumReply";
+import ThreadView from "../models/ThreadView";
 import User from "../models/User";
 import sendEmail from "../utils/sendEmail";
 import { forumReplyNotificationEmailHTML } from "../utils/emailTemplatesHTML";
@@ -158,7 +159,8 @@ export const getAllThreads = async (req: Request, res: Response) => {
 export const getThreadById = async (req: Request, res: Response) => {
     try {
         const { threadId } = req.params;
-        const userId = (req as any).user?.id; // Get user ID if authenticated
+        const userId = (req as any).user?.id;
+        const ipAddress = req.ip || req.socket.remoteAddress;
 
         const thread = await ForumThread.findById(threadId)
             .populate("author", "name email role")
@@ -168,18 +170,28 @@ export const getThreadById = async (req: Request, res: Response) => {
             return res.status(404).json({ message: "Thread not found" });
         }
 
-        // Only increment view count if user hasn't viewed this thread in this session
-        // Check if this is a new view (simple approach: increment only once per user per thread)
-        const hasViewed = req.session?.viewedThreads?.includes(threadId);
-        
-        if (!hasViewed) {
+        // Track unique views using ThreadView model
+        try {
+            const viewData: any = { thread: threadId };
+            
+            if (userId) {
+                viewData.user = userId;
+            } else if (ipAddress) {
+                viewData.ipAddress = ipAddress;
+            }
+
+            // Try to create a view record (will fail silently if already exists due to unique index)
+            await ThreadView.create(viewData);
+            
+            // If view was created successfully, increment the counter
             thread.views += 1;
             await thread.save();
-            
-            // Track viewed threads in session
-            if (!req.session) req.session = {};
-            if (!req.session.viewedThreads) req.session.viewedThreads = [];
-            req.session.viewedThreads.push(threadId);
+        } catch (viewError: any) {
+            // View already exists (duplicate key error), don't increment
+            // This is expected behavior, not an error
+            if (viewError.code !== 11000) {
+                console.error("Error tracking view:", viewError);
+            }
         }
 
         const replyCount = await ForumReply.countDocuments({ thread: threadId });
