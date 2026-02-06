@@ -16,6 +16,7 @@ import paymentRoutes from "./routes/v1/payment.routes";
 import titleRoutes from "./routes/v1/ai.title";
 import membershipFormRoutes from "./routes/v1/membershipform.routes"
 import planRoutes from "./routes/v1/plan.routes"
+import forumRoutes from "./routes/forum.routes"
 
 
 // === Rate Limiting Middleware Setup ===
@@ -84,6 +85,9 @@ app.use("/api/v1/member-dashboard", membersRoutes);
 
 //users comment route
 app.use("/api/v1/comments", commentRoutes);
+
+//forum routes
+app.use("/api/v1/forum", forumRoutes);
 
 //notification route
 app.use("/api/v1/notifications", notificationRoutes);

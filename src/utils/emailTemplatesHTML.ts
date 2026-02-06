@@ -761,3 +761,38 @@ export const paymentReceiptEmailHTML = (
         ${emailFooter}
     `;
 };
+
+export const forumReplyNotificationEmailHTML = (
+    authorName: string,
+    threadTitle: string,
+    replierName: string,
+    replyText: string,
+    threadId: string
+): string => {
+    return `
+${emailHeader}
+        <div class="header">
+            <h1>💬 New Reply on Your Thread</h1>
+        </div>
+        <div class="content">
+            <p class="greeting">Hi <strong>${authorName}</strong>,</p>
+            <p><strong>${replierName}</strong> has replied to your forum thread:</p>
+            
+            <div class="details-box">
+                <h3>${threadTitle}</h3>
+                <p style="color: #666; font-style: italic; margin: 10px 0;">"${replyText}"</p>
+            </div>
+
+            <div style="text-align: center;">
+                <a href="${process.env.FRONTEND_URL}/forum/threads/${threadId}" class="button">View Thread & Reply</a>
+            </div>
+
+            <div class="info-box">
+                <p><strong>💡 Tip:</strong> Keep the conversation going! Engage with your community members to build stronger connections.</p>
+            </div>
+
+            <p>Best regards,<br><strong>The NAAPE Team</strong></p>
+        </div>
+${emailFooter}
+    `;
+};
