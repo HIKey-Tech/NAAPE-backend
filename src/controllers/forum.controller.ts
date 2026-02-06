@@ -161,6 +161,10 @@ export const getThreadById = async (req: Request, res: Response) => {
         const { threadId } = req.params;
         const userId = (req as any).user?.id;
 
+        console.log("=== VIEW TRACKING DEBUG ===");
+        console.log("Thread ID:", threadId);
+        console.log("User ID:", userId);
+
         const thread = await ForumThread.findById(threadId)
             .populate("author", "name email role")
             .populate("category", "name slug");
@@ -169,43 +173,70 @@ export const getThreadById = async (req: Request, res: Response) => {
             return res.status(404).json({ message: "Thread not found" });
         }
 
+        console.log("Current view count:", thread.views);
+
         // Track view per user - only increment if this user hasn't viewed before
         if (userId) {
             try {
                 // Try to create a new view record
-                await ThreadView.create({
+                const viewRecord = await ThreadView.create({
                     thread: threadId,
                     user: userId,
                 });
                 
+                console.log("New view record created:", viewRecord._id);
+                
                 // If successful (no duplicate), increment the view count
                 thread.views += 1;
                 await thread.save();
+                
+                console.log("View count incremented to:", thread.views);
             } catch (error: any) {
                 // If error is duplicate key (code 11000), user already viewed - don't increment
-                if (error.code !== 11000) {
+                if (error.code === 11000) {
+                    console.log("User already viewed this thread - not incrementing");
+                } else {
                     console.error("Error tracking view:", error);
                 }
             }
         } else {
             // For non-authenticated users, track by IP address
             const ipAddress = req.ip || req.socket.remoteAddress || "unknown";
+            console.log("Non-authenticated user, IP:", ipAddress);
+            
             try {
                 await ThreadView.create({
                     thread: threadId,
                     ipAddress,
                 });
                 
+                console.log("New IP view record created");
+                
                 thread.views += 1;
                 await thread.save();
+                
+                console.log("View count incremented to:", thread.views);
             } catch (error: any) {
-                if (error.code !== 11000) {
+                if (error.code === 11000) {
+                    console.log("IP already viewed this thread - not incrementing");
+                } else {
                     console.error("Error tracking view:", error);
                 }
             }
         }
 
         const replyCount = await ForumReply.countDocuments({ thread: threadId });
+
+        res.status(200).json({
+            data: {
+                ...thread.toObject(),
+                replyCount,
+            },
+        });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
         res.status(200).json({
             data: {
