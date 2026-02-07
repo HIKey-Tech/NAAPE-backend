@@ -3,11 +3,12 @@ import { createNews, getAllNews, getSingleNews } from "../../controllers/news.co
 import { addNewsComment, getNewsComments, deleteComment } from "../../controllers/comment.controller";
 import { protect } from "../../middleware/auth.middleware";
 import { authorizeRoles } from "../../middleware/role.middleware";
+import { upload } from "../../config/multer";
 
 const router = Router();
 
 // Admin can create news
-router.post("/", protect, authorizeRoles("admin", "editor"), createNews);
+router.post("/", protect, authorizeRoles("admin", "editor"), upload.single("image"), createNews);
 
 // Public
 router.get("/", getAllNews);
