@@ -64,7 +64,7 @@ export const addComment = async (req: Request, res: Response) => {
 export const addNewsComment = async (req: Request, res: Response) => {
     try {
         const { newsId } = req.params;
-        const { text } = req.body;
+        const { text, parentCommentId } = req.body;
 
         const userId = (req as any).user.id;
 
@@ -72,11 +72,20 @@ export const addNewsComment = async (req: Request, res: Response) => {
             return res.status(400).json({ message: "Comment cannot be empty" });
         }
 
+        // If replying to a comment, verify parent exists
+        if (parentCommentId) {
+            const parentComment = await Comment.findById(parentCommentId);
+            if (!parentComment) {
+                return res.status(404).json({ message: "Parent comment not found" });
+            }
+        }
+
         const comment = await Comment.create({
             news: newsId,
             contentType: "news",
             user: userId,
             text,
+            parentComment: parentCommentId || null,
         });
 
         // Populate the comment with user details before returning
@@ -112,14 +121,45 @@ export const getNewsComments = async (req: Request, res: Response) => {
     try {
         const { newsId } = req.params;
 
-        const comments = await Comment.find({ 
+        // Get all comments for this news
+        const allComments = await Comment.find({ 
             news: newsId,
             contentType: "news"
         })
             .populate("user", "name email role")
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: 1 }); // Sort by oldest first for proper nesting
 
-        res.status(200).json({ data: comments });
+        // Organize comments into parent-child structure
+        const commentMap = new Map();
+        const rootComments: any[] = [];
+
+        // First pass: create map of all comments
+        allComments.forEach(comment => {
+            const commentObj = comment.toObject();
+            commentObj.replies = [];
+            commentMap.set(commentObj._id.toString(), commentObj);
+        });
+
+        // Second pass: organize into tree structure
+        allComments.forEach(comment => {
+            const commentObj = commentMap.get(comment._id.toString());
+            if (comment.parentComment) {
+                const parent = commentMap.get(comment.parentComment.toString());
+                if (parent) {
+                    parent.replies.push(commentObj);
+                } else {
+                    // Parent not found, treat as root
+                    rootComments.push(commentObj);
+                }
+            } else {
+                rootComments.push(commentObj);
+            }
+        });
+
+        // Sort root comments by newest first
+        rootComments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        res.status(200).json({ data: rootComments });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }

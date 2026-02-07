@@ -6,6 +6,7 @@ export interface IComment extends Document {
     contentType: "publication" | "news";
     user: mongoose.Schema.Types.ObjectId;
     text: string;
+    parentComment?: mongoose.Schema.Types.ObjectId;
     createdAt: Date;
 }
 
@@ -30,6 +31,11 @@ const commentSchema = new Schema<IComment>(
             required: true,
         },
         text: { type: String, required: true, trim: true },
+        parentComment: {
+            type: Schema.Types.ObjectId,
+            ref: "Comment",
+            default: null,
+        },
     },
     { timestamps: true }
 );
