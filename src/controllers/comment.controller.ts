@@ -130,21 +130,24 @@ export const getNewsComments = async (req: Request, res: Response) => {
             .sort({ createdAt: 1 }); // Sort by oldest first for proper nesting
 
         // Organize comments into parent-child structure
-        const commentMap = new Map();
+        const commentMap = new Map<string, any>();
         const rootComments: any[] = [];
 
         // First pass: create map of all comments
         allComments.forEach(comment => {
-            const commentObj = comment.toObject();
+            const commentObj: any = comment.toObject();
             commentObj.replies = [];
-            commentMap.set(commentObj._id.toString(), commentObj);
+            commentMap.set(String(commentObj._id), commentObj);
         });
 
         // Second pass: organize into tree structure
         allComments.forEach(comment => {
-            const commentObj = commentMap.get(comment._id.toString());
+            const commentId = String((comment as any)._id);
+            const commentObj = commentMap.get(commentId);
+            
             if (comment.parentComment) {
-                const parent = commentMap.get(comment.parentComment.toString());
+                const parentId = String(comment.parentComment);
+                const parent = commentMap.get(parentId);
                 if (parent) {
                     parent.replies.push(commentObj);
                 } else {
