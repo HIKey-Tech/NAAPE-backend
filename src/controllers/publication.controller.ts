@@ -16,9 +16,13 @@ import {
 // Create new publication (Member)
 export const createPublication = async (req: Request, res: Response) => {
     try {
-        const { title, content, category, image: imageUrl } = req.body;
+        const { title, content, category, image: imageUrl, status } = req.body;
         const authorId = (req as any).user?.id || (req.user && (req.user as any)._id);
         const image = (req as any).file?.path || imageUrl || null;
+
+        // Validate status - default to draft if not provided or invalid
+        const validStatuses = ["draft", "pending"];
+        const publicationStatus = validStatuses.includes(status) ? status : "draft";
 
         const publication = await Publication.create({
             title,
@@ -26,51 +30,59 @@ export const createPublication = async (req: Request, res: Response) => {
             category,
             image,
             author: authorId,
+            status: publicationStatus,
         });
 
         // Get author details
         const author = await User.findById(authorId);
 
-        // Send confirmation email to author
-        if (author) {
-            try {
-                await sendEmail({
-                    to: author.email,
-                    subject: "Publication Submitted Successfully",
-                    text: `Dear ${author.name},\n\nYour publication "${title}" has been submitted successfully and is now pending review.\n\nBest regards,\nThe NAAPE Team`,
-                    html: publicationSubmittedEmailHTML(author.name, title)
-                });
-            } catch (emailError) {
-                console.error("Failed to send publication submission email:", emailError);
-            }
-        }
-
-        // Notify all admins about new publication
-        try {
-            const admins = await User.find({ role: "admin" });
-            for (const admin of admins) {
+        // Only send emails if status is "pending" (submitted for review)
+        if (publicationStatus === "pending") {
+            // Send confirmation email to author
+            if (author) {
                 try {
                     await sendEmail({
-                        to: admin.email,
-                        subject: "New Publication Pending Review",
-                        text: `Dear ${admin.name},\n\nA new publication "${title}" by ${author?.name} has been submitted and requires review.\n\nBest regards,\nThe NAAPE System`,
-                        html: adminPublicationNotificationEmailHTML(
-                            admin.name,
-                            author?.name || "Unknown",
-                            title,
-                            String(publication._id)
-                        )
+                        to: author.email,
+                        subject: "Publication Submitted Successfully",
+                        text: `Dear ${author.name},\n\nYour publication "${title}" has been submitted successfully and is now pending review.\n\nBest regards,\nThe NAAPE Team`,
+                        html: publicationSubmittedEmailHTML(author.name, title)
                     });
                 } catch (emailError) {
-                    console.error(`Failed to send admin notification to ${admin.email}:`, emailError);
+                    console.error("Failed to send publication submission email:", emailError);
                 }
             }
-        } catch (error) {
-            console.error("Failed to notify admins:", error);
+
+            // Notify all admins about new publication
+            try {
+                const admins = await User.find({ role: "admin" });
+                for (const admin of admins) {
+                    try {
+                        await sendEmail({
+                            to: admin.email,
+                            subject: "New Publication Pending Review",
+                            text: `Dear ${admin.name},\n\nA new publication "${title}" by ${author?.name} has been submitted and requires review.\n\nBest regards,\nThe NAAPE System`,
+                            html: adminPublicationNotificationEmailHTML(
+                                admin.name,
+                                author?.name || "Unknown",
+                                title,
+                                String(publication._id)
+                            )
+                        });
+                    } catch (emailError) {
+                        console.error(`Failed to send admin notification to ${admin.email}:`, emailError);
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to notify admins:", error);
+            }
         }
 
+        const message = publicationStatus === "draft" 
+            ? "Publication saved as draft successfully."
+            : "Publication submitted successfully and awaiting approval.";
+
         res.status(201).json({
-            message: "Publication submitted successfully and awaiting approval.",
+            message,
             data: publication,
         });
     } catch (error: any) {
@@ -222,7 +234,7 @@ export const getMyPublications = async (req: Request, res: Response) => {
         }
 
         const { status } = req.query;
-        const allowedStatuses = ["pending", "approved", "rejected"];
+        const allowedStatuses = ["draft", "pending", "approved", "rejected"];
         const filter: Record<string, any> = { author: userId };
 
         if (typeof status === "string" && allowedStatuses.includes(status)) {
@@ -325,12 +337,12 @@ export const updateMyPublication = async (req: Request, res: Response) => {
             return res.status(404).json({ message: "Publication not found or you do not have permission to edit it" });
         }
 
-        // Only allow edits when status is "pending" or "rejected"
+        // Only allow edits when status is "draft", "pending" or "rejected"
         if (publication.status === "approved") {
             return res.status(403).json({ message: "Cannot edit an approved publication." });
         }
 
-        const { title, content, category, image: imageUrl } = req.body;
+        const { title, content, category, image: imageUrl, status } = req.body;
         const newImage = (req as any).file?.path || imageUrl || publication.image;
 
         publication.title = title ?? publication.title;
@@ -338,12 +350,23 @@ export const updateMyPublication = async (req: Request, res: Response) => {
         publication.category = category ?? publication.category;
         publication.image = newImage;
 
-        // Reset status to pending on update
-        publication.status = "pending";
+        // Handle status update
+        const validStatuses = ["draft", "pending"];
+        if (status && validStatuses.includes(status)) {
+            publication.status = status;
+        } else if (publication.status === "rejected") {
+            // If updating a rejected publication, set to pending by default
+            publication.status = "pending";
+        }
+
         await publication.save();
 
+        const message = publication.status === "draft"
+            ? "Publication saved as draft successfully."
+            : "Publication updated successfully and is pending approval.";
+
         res.status(200).json({
-            message: "Publication updated successfully and is pending approval.",
+            message,
             data: publication,
         });
     } catch (error: any) {

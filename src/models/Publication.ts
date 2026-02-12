@@ -7,7 +7,7 @@ export interface IPublication extends Document {
     category: string;
     image?: string;
     author: mongoose.Schema.Types.ObjectId | IUser;
-    status: "pending" | "approved" | "rejected";
+    status: "draft" | "pending" | "approved" | "rejected";
     createAt: Date;
     updatedAt: Date;
 }
@@ -36,8 +36,8 @@ const publicationSchema = new Schema<IPublication>(
         },
         status: {
             type: String,
-            enum: ["pending", "approved", "rejected"],
-            default: "pending"
+            enum: ["draft", "pending", "approved", "rejected"],
+            default: "draft"
         },
     },
     { timestamps: true }
