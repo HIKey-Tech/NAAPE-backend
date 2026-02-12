@@ -45,35 +45,49 @@ export const updateProfile = async (req, res) => {
 
         // Update profile object
         if (req.body.profile) {
-            const parsedProfile = JSON.parse(req.body.profile);
-            user.profile = {
-                ...user.profile,
-                ...parsedProfile,
-            };
+            try {
+                const parsedProfile = JSON.parse(req.body.profile);
+                // Preserve existing image if not being updated
+                const currentImage = user.profile?.image;
+                user.profile = {
+                    ...user.profile,
+                    ...parsedProfile,
+                };
+                // Restore image if it wasn't in the update
+                if (!parsedProfile.image && currentImage) {
+                    user.profile.image = currentImage;
+                }
+            } catch (parseError) {
+                return res.status(400).json({ message: "Invalid profile data format" });
+            }
         }
 
         // Update professional object
-        // Using JSON.parse directly on req.body.professional risks crashing the server if invalid JSON is sent.
-        // An invalid JSON string sent from the client will throw an exception here,
-        // causing your try/catch to handle it and return a generic 500 error,
-        // which makes it hard for clients to know the request body was malformed.
         if (req.body.professional) {
-            const parsedProfessional = JSON.parse(req.body.professional);
-            user.professional = {
-                ...user.professional,
-                ...parsedProfessional,
-            };
+            try {
+                const parsedProfessional = JSON.parse(req.body.professional);
+                user.professional = {
+                    ...user.professional,
+                    ...parsedProfessional,
+                };
+            } catch (parseError) {
+                return res.status(400).json({ message: "Invalid professional data format" });
+            }
         }
 
         // Handle image replacement
         if (req.file) {
             // Delete old image from Cloudinary
             if (user.profile?.image?.publicId) {
-                await cloudinary.uploader.destroy(
-                    user.profile.image.publicId
-                );
+                try {
+                    await cloudinary.uploader.destroy(user.profile.image.publicId);
+                } catch (cloudinaryError) {
+                    console.error("Failed to delete old image from Cloudinary:", cloudinaryError);
+                    // Continue anyway - don't fail the update
+                }
             }
 
+            // Set new image
             user.profile.image = {
                 url: req.file.path,
                 publicId: req.file.filename || req.file.public_id,
@@ -89,7 +103,10 @@ export const updateProfile = async (req, res) => {
         });
     } catch (error) {
         console.error("Update profile error:", error);
-        res.status(500).json({ message: "Profile update failed" });
+        res.status(500).json({ 
+            message: "Profile update failed",
+            error: error.message 
+        });
     }
 };
 
