@@ -47,14 +47,29 @@ export const updateProfile = async (req, res) => {
         if (req.body.profile) {
             try {
                 const parsedProfile = JSON.parse(req.body.profile);
-                // Preserve existing image if not being updated
+                
+                // Remove any undefined, null, or "undefined" string values
+                const cleanedProfile = Object.fromEntries(
+                    Object.entries(parsedProfile).filter(([key, value]) => {
+                        // Skip image field entirely - it's handled separately
+                        if (key === 'image') return false;
+                        // Skip undefined, null, or string "undefined"
+                        if (value === undefined || value === null || value === "undefined") return false;
+                        return true;
+                    })
+                );
+                
+                // Preserve existing image
                 const currentImage = user.profile?.image;
+                
+                // Update profile with cleaned data
                 user.profile = {
                     ...user.profile,
-                    ...parsedProfile,
+                    ...cleanedProfile,
                 };
-                // Restore image if it wasn't in the update
-                if (!parsedProfile.image && currentImage) {
+                
+                // Always restore the existing image (never let it be overwritten by profile update)
+                if (currentImage) {
                     user.profile.image = currentImage;
                 }
             } catch (parseError) {
