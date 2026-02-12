@@ -20,9 +20,17 @@ export const createPublication = async (req: Request, res: Response) => {
         const authorId = (req as any).user?.id || (req.user && (req.user as any)._id);
         const image = (req as any).file?.path || imageUrl || null;
 
+        console.log("🟢 [BACKEND] Received publication data:");
+        console.log("  - title:", title);
+        console.log("  - category:", category);
+        console.log("  - status from request:", status);
+        console.log("  - authorId:", authorId);
+
         // Validate status - default to draft if not provided or invalid
         const validStatuses = ["draft", "pending"];
         const publicationStatus = validStatuses.includes(status) ? status : "draft";
+
+        console.log("🟢 [BACKEND] Final status:", publicationStatus);
 
         const publication = await Publication.create({
             title,
@@ -33,11 +41,18 @@ export const createPublication = async (req: Request, res: Response) => {
             status: publicationStatus,
         });
 
+        console.log("🟢 [BACKEND] Publication created:", {
+            id: publication._id,
+            status: publication.status,
+            title: publication.title
+        });
+
         // Get author details
         const author = await User.findById(authorId);
 
         // Only send emails if status is "pending" (submitted for review)
         if (publicationStatus === "pending") {
+            console.log("🟢 [BACKEND] Sending emails for pending publication");
             // Send confirmation email to author
             if (author) {
                 try {
@@ -75,6 +90,8 @@ export const createPublication = async (req: Request, res: Response) => {
             } catch (error) {
                 console.error("Failed to notify admins:", error);
             }
+        } else {
+            console.log("🟢 [BACKEND] Skipping emails for draft publication");
         }
 
         const message = publicationStatus === "draft" 
