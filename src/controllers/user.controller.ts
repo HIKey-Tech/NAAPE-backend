@@ -101,11 +101,11 @@ export const updateProfile = async (req, res) => {
             message: "Profile updated successfully",
             data: sanitizedUser,
         });
-    } catch (error) {
+    } catch (error: any) {
         console.error("Update profile error:", error);
         res.status(500).json({ 
             message: "Profile update failed",
-            error: error.message 
+            error: error?.message || "Unknown error occurred"
         });
     }
 };
