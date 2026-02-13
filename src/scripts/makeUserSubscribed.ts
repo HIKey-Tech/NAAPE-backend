@@ -52,7 +52,7 @@ const makeUserSubscribed = async (email: string) => {
                 flutterwavePlanId: "test-plan-basic",
                 price: 15000,
                 currency: "NGN",
-                interval: "yearly",
+                interval: "monthly",
                 features: [
                     "Access to member dashboard",
                     "Forum participation",
@@ -68,7 +68,15 @@ const makeUserSubscribed = async (email: string) => {
         // Create subscription
         const startDate = new Date();
         const endDate = new Date();
-        endDate.setFullYear(endDate.getFullYear() + 1); // 1 year subscription
+        
+        // Set end date based on plan interval
+        if (plan.interval === "monthly") {
+            endDate.setMonth(endDate.getMonth() + 1); // 1 month subscription
+        } else if (plan.interval === "yearly") {
+            endDate.setFullYear(endDate.getFullYear() + 1); // 1 year subscription
+        } else {
+            endDate.setMonth(endDate.getMonth() + 1); // Default to 1 month
+        }
 
         // Generate unique test subscription ID to avoid duplicate key error
         const testSubscriptionId = `test-sub-${Date.now()}-${Math.random().toString(36).substring(7)}`;
