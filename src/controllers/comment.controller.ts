@@ -89,7 +89,7 @@ export const addNewsComment = async (req: Request, res: Response) => {
         });
 
         // Populate the comment with user details before returning
-        await comment.populate("user", "name email role");
+        await comment.populate("user", "name email role profile.image");
 
         res.status(201).json({
             message: "Comment added",
@@ -108,7 +108,7 @@ export const getComments = async (req: Request, res: Response) => {
             publication: publicationId,
             contentType: "publication"
         })
-            .populate("user", "name email role")
+            .populate("user", "name email role profile.image")
             .sort({ createdAt: -1 });
 
         res.status(200).json({ data: comments });
@@ -126,7 +126,7 @@ export const getNewsComments = async (req: Request, res: Response) => {
             news: newsId,
             contentType: "news"
         })
-            .populate("user", "name email role")
+            .populate("user", "name email role profile.image")
             .sort({ createdAt: 1 }); // Sort by oldest first for proper nesting
 
         // Organize comments into parent-child structure
