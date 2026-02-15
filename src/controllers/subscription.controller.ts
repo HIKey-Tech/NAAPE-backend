@@ -188,7 +188,6 @@ export const initializeSubscriptionPayment = async (req: Request, res: Response)
             amount: plan.price,
             currency: plan.currency,
             redirect_url: redirectUrl,
-            payment_plan: plan.flutterwavePlanId,
             customer: {
                 email: user.email,
                 name: user.name,
@@ -198,6 +197,11 @@ export const initializeSubscriptionPayment = async (req: Request, res: Response)
                 title: `${plan.name} Subscription`,
                 description: "Recurring subscription payment",
             },
+            meta: {
+                planId: plan._id,
+                userId: user._id,
+                tier: plan.name
+            }
         });
 
         return res.json({
