@@ -120,3 +120,75 @@ export const getEventPaymentStats = async (req: Request, res: Response) => {
         });
     }
 };
+
+// Admin: Get all member payments (subscription, membership, etc.)
+export const getAdminMemberPayments = async (req: Request, res: Response) => {
+    try {
+        const { paymentType } = req.query;
+        
+        let query: any = { type: { $ne: "event" } }; // Exclude event payments
+        if (paymentType && paymentType !== "all") {
+            query.type = paymentType;
+        }
+
+        const memberPayments = await PaymentHistory.find(query)
+            .populate("user", "firstName lastName email profilePicture")
+            .sort({ createdAt: -1 })
+            .lean();
+
+        return res.status(200).json({
+            success: true,
+            count: memberPayments.length,
+            payments: memberPayments,
+        });
+    } catch (error: any) {
+        console.error("Error getting admin member payments:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to get member payments",
+            error: error.message || error,
+        });
+    }
+};
+
+// Admin: Get member payment statistics
+export const getMemberPaymentStats = async (req: Request, res: Response) => {
+    try {
+        const stats = await PaymentHistory.aggregate([
+            { $match: { type: { $ne: "event" } } }, // Exclude event payments
+            {
+                $group: {
+                    _id: "$status",
+                    count: { $sum: 1 },
+                    totalAmount: { $sum: "$amount" }
+                }
+            }
+        ]);
+
+        const typeStats = await PaymentHistory.aggregate([
+            { $match: { type: { $ne: "event" } } }, // Exclude event payments
+            {
+                $group: {
+                    _id: "$type",
+                    count: { $sum: 1 },
+                    totalAmount: { $sum: "$amount" },
+                    statuses: { $push: "$status" }
+                }
+            },
+            { $sort: { count: -1 } }
+        ]);
+
+        return res.status(200).json({
+            success: true,
+            paymentStats: stats,
+            typeStats: typeStats,
+        });
+    } catch (error: any) {
+        console.error("Error getting member payment stats:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to get member payment statistics",
+            error: error.message || error,
+        });
+    }
+};
