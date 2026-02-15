@@ -198,7 +198,7 @@ export const initializeSubscriptionPayment = async (req: Request, res: Response)
 
         // Handle premium tier - payment required
         console.log("💳 Processing premium tier subscription");
-        const redirectUrl = process.env.FLW_REDIRECT_URL;
+        const redirectUrl = process.env.FLW_REDIRECT_URL || "https://www.naape.ng/subscription/callback";
         console.log("Redirect URL:", redirectUrl);
         
         if (!redirectUrl) {
