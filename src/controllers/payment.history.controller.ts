@@ -582,13 +582,9 @@ export const getMemberPaymentStats = async (req: Request, res: Response) => {
 // Admin: Get events summary for attendee management
 export const getEventsForAttendeeManagement = async (req: Request, res: Response) => {
     try {
-        console.log('getEventsForAttendeeManagement called');
-        
         const events = await Event.find()
             .select('title date location isPaid price currency registeredUsers payments')
             .sort({ date: -1 });
-
-        console.log(`Found ${events.length} events`);
 
         const eventsSummary = events.map(event => ({
             _id: event._id,
@@ -601,8 +597,6 @@ export const getEventsForAttendeeManagement = async (req: Request, res: Response
             registeredCount: event.registeredUsers?.length || 0,
             attendeeCount: event.registeredUsers?.length || 0
         }));
-
-        console.log('Returning events summary:', eventsSummary);
 
         return res.status(200).json({
             success: true,
