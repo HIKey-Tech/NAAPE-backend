@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IPlan extends Document {
-    name: "basic" | "premium";
+    name: "free" | "premium";
     flutterwavePlanId: string;
     price: number;
     currency: string;
@@ -14,7 +14,7 @@ const PlanSchema = new Schema<IPlan>(
     {
         name: {
             type: String,
-            enum: ["basic", "premium"],
+            enum: ["free", "premium"],
             required: true,
             unique: true,
         },

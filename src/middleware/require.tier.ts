@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 
-export const requireTier = (requiredTier: "basic" | "premium") => {
+export const requireTier = (requiredTier: "free" | "premium") => {
     return (req: Request & { subscription?: { tier: string } }, res: Response, next: NextFunction) => {
         const subscription = req.subscription;
 

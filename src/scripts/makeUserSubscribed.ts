@@ -86,7 +86,7 @@ const makeUserSubscribed = async (email: string) => {
             planId: plan._id,
             flutterwaveSubscriptionId: testSubscriptionId, // Unique test ID
             email: user.email,
-            tier: "basic",
+            tier: "free",
             status: "active",
             startDate,
             endDate,

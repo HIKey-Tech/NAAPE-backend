@@ -6,7 +6,7 @@ export interface ISubscription extends Document {
     flutterwaveSubscriptionId?: string; // ✅ optional now
     flutterwaveCustomerId?: string;
     email: string;
-    tier: "basic" | "premium";
+    tier: "free" | "premium";
     status: "pending" | "active" | "cancelled";
     startDate?: Date;
     endDate?: Date;
@@ -14,7 +14,7 @@ export interface ISubscription extends Document {
     updatedAt: Date;
 
     // Embedded Plan snapshot at time of subscription
-    planName: "basic" | "premium";
+    planName: "free" | "premium";
     flutterwavePlanId?: string;
     price?: number;
     currency: string;
@@ -51,7 +51,7 @@ const SubscriptionSchema = new Schema<ISubscription>(
         },
         tier: {
             type: String,
-            enum: ["basic", "premium"],
+            enum: ["free", "premium"],
             required: true,
         },
         status: {
@@ -63,7 +63,7 @@ const SubscriptionSchema = new Schema<ISubscription>(
         endDate: { type: Date },
         planName: {
             type: String,
-            enum: ["basic", "premium"],
+            enum: ["free", "premium"],
         },
         flutterwavePlanId: { type: String },
         price: { type: Number },

@@ -111,7 +111,7 @@ export const initializeSubscriptionPayment = async (req: Request, res: Response)
 
         const { tier } = req.body;
 
-        if (!tier || !["basic", "premium"].includes(tier)) {
+        if (!tier || !["free", "premium"].includes(tier)) {
             return res.status(400).json({ error: "Invalid subscription tier" });
         }
 
@@ -120,6 +120,62 @@ export const initializeSubscriptionPayment = async (req: Request, res: Response)
             return res.status(404).json({ error: "Subscription plan not found" });
         }
 
+        // Handle free tier - no payment needed
+        if (tier === "free") {
+            // Check if user already has an active subscription
+            let subscription = await Subscription.findOne({
+                userId: user._id,
+                status: "active"
+            });
+
+            const endDate = new Date();
+            endDate.setMonth(endDate.getMonth() + 1); // Free tier also gets monthly access
+
+            if (subscription) {
+                // Update existing subscription to free
+                subscription.planId = plan._id as any;
+                subscription.tier = plan.name;
+                subscription.planName = plan.name;
+                subscription.flutterwavePlanId = plan.flutterwavePlanId;
+                subscription.price = plan.price;
+                subscription.currency = plan.currency;
+                subscription.interval = plan.interval;
+                subscription.features = plan.features;
+                subscription.startDate = new Date();
+                subscription.endDate = endDate;
+                await subscription.save();
+            } else {
+                // Create new free subscription
+                subscription = await Subscription.create({
+                    userId: user._id,
+                    planId: plan._id,
+                    email: user.email,
+                    tier: plan.name,
+                    status: "active",
+                    startDate: new Date(),
+                    endDate: endDate,
+                    planName: plan.name,
+                    flutterwavePlanId: plan.flutterwavePlanId,
+                    price: plan.price,
+                    currency: plan.currency,
+                    interval: plan.interval,
+                    features: plan.features,
+                    isActive: true,
+                });
+            }
+
+            return res.json({
+                success: true,
+                message: "Free subscription activated successfully",
+                subscription: {
+                    tier: subscription.tier,
+                    startDate: subscription.startDate,
+                    endDate: subscription.endDate,
+                }
+            });
+        }
+
+        // Handle premium tier - payment required
         const redirectUrl = process.env.FLW_REDIRECT_URL;
         if (!redirectUrl) {
             return res.status(500).json({ error: "FLW_REDIRECT_URL not set" });
