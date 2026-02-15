@@ -24,10 +24,12 @@ const router = express.Router();
 
 // Public routes
 router.get("/", getAllEvents);
-router.get("/:id", getSingleEvent);
 
 // Authenticated user routes
 router.get("/my-events", protect, getUserEvents);
+
+// Public single event route (after authenticated routes to avoid conflicts)
+router.get("/:id", getSingleEvent);
 
 // Admin-only event management routes
 router.get("/admin/events", protect, authorizeRoles("admin"), getAdminEvents);
