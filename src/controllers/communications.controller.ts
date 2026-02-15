@@ -160,6 +160,15 @@ export const sendBulkEmail = async (req: Request, res: Response) => {
             });
         }
 
+        console.log("Bulk email request:", {
+            eventId,
+            subject,
+            contentLength: content.length,
+            templateId: templateId || 'none',
+            recipientCount: recipients?.length || 0,
+            sendToAll
+        });
+
         // Get event details for variable substitution
         const event = await Event.findById(eventId);
         if (!event) {
@@ -217,19 +226,25 @@ export const sendBulkEmail = async (req: Request, res: Response) => {
                 let finalSubject = subject;
 
                 // Event variables
-                finalContent = finalContent.replace(/\{\{eventTitle\}\}/g, event.title);
+                finalContent = finalContent.replace(/\{\{eventTitle\}\}/g, event.title || '');
                 finalContent = finalContent.replace(/\{\{eventDate\}\}/g, new Date(event.date).toLocaleDateString());
-                finalContent = finalContent.replace(/\{\{eventLocation\}\}/g, event.location);
+                finalContent = finalContent.replace(/\{\{eventLocation\}\}/g, event.location || '');
                 
-                finalSubject = finalSubject.replace(/\{\{eventTitle\}\}/g, event.title);
+                finalSubject = finalSubject.replace(/\{\{eventTitle\}\}/g, event.title || '');
                 finalSubject = finalSubject.replace(/\{\{eventDate\}\}/g, new Date(event.date).toLocaleDateString());
 
                 // User variables
                 if (user) {
-                    finalContent = finalContent.replace(/\{\{userName\}\}/g, user.name);
-                    finalContent = finalContent.replace(/\{\{userEmail\}\}/g, user.email);
+                    finalContent = finalContent.replace(/\{\{userName\}\}/g, user.name || '');
+                    finalContent = finalContent.replace(/\{\{userEmail\}\}/g, user.email || '');
                     
-                    finalSubject = finalSubject.replace(/\{\{userName\}\}/g, user.name);
+                    finalSubject = finalSubject.replace(/\{\{userName\}\}/g, user.name || '');
+                } else {
+                    // Handle case where user is not found
+                    finalContent = finalContent.replace(/\{\{userName\}\}/g, '');
+                    finalContent = finalContent.replace(/\{\{userEmail\}\}/g, email);
+                    
+                    finalSubject = finalSubject.replace(/\{\{userName\}\}/g, '');
                 }
 
                 return {
@@ -240,14 +255,66 @@ export const sendBulkEmail = async (req: Request, res: Response) => {
             })
         );
 
-        // Use the enhanced bulk email service
-        const bulkResult = await bulkEmailService({
-            recipients: finalRecipients,
-            subject: emailsToSend[0].subject, // All should have the same subject after substitution
-            text: emailsToSend[0].content, // Use first content as template (they should be similar)
-            html: emailsToSend[0].content.replace(/\n/g, '<br>'),
-            communicationId: (communicationHistory._id as any).toString()
+        console.log("Variable substitution completed:", {
+            originalContent: content.substring(0, 100) + '...',
+            hasVariables: content.includes('{{') && content.includes('}}'),
+            sampleProcessedContent: emailsToSend[0]?.content.substring(0, 100) + '...'
         });
+
+        // Send personalized emails using the bulk email service
+        // For templates with variables, we need to send individual emails with personalized content
+        const hasVariables = content.includes('{{') && content.includes('}}');
+        
+        let bulkResult;
+        
+        if (hasVariables && emailsToSend.length > 0) {
+            // Send individual personalized emails
+            console.log("Sending personalized emails with variable substitution");
+            const results: Array<{email: string; status: 'sent' | 'failed'; messageId?: string; error?: string}> = [];
+            let successful = 0;
+            let failed = 0;
+            
+            for (const emailData of emailsToSend) {
+                try {
+                    const individualResult = await bulkEmailService({
+                        recipients: [emailData.email],
+                        subject: emailData.subject,
+                        text: emailData.content,
+                        html: emailData.content.replace(/\n/g, '<br>'),
+                        communicationId: (communicationHistory._id as any).toString()
+                    });
+                    
+                    successful += individualResult.successful;
+                    failed += individualResult.failed;
+                    results.push(...individualResult.results);
+                } catch (error: any) {
+                    console.error(`Failed to send personalized email to ${emailData.email}:`, error);
+                    failed++;
+                    results.push({
+                        email: emailData.email,
+                        status: 'failed',
+                        error: error?.message || 'Unknown error'
+                    });
+                }
+            }
+            
+            bulkResult = {
+                total: emailsToSend.length,
+                successful,
+                failed,
+                results
+            };
+        } else {
+            // Send bulk email with same content for all recipients (no personalization needed)
+            console.log("Sending bulk email with same content for all recipients");
+            bulkResult = await bulkEmailService({
+                recipients: finalRecipients,
+                subject: emailsToSend[0]?.subject || subject,
+                text: emailsToSend[0]?.content || content,
+                html: (emailsToSend[0]?.content || content).replace(/\n/g, '<br>'),
+                communicationId: (communicationHistory._id as any).toString()
+            });
+        }
 
         // Update communication history with results
         communicationHistory.deliveryStatus = bulkResult.failed === 0 ? 'delivered' : 
