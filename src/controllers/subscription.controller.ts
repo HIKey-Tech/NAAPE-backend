@@ -106,84 +106,110 @@ export const createPlan = async (req: Request, res: Response) => {
  */
 export const initializeSubscriptionPayment = async (req: Request, res: Response) => {
     try {
+        console.log("=== SUBSCRIPTION PAYMENT INITIALIZATION ===");
+        console.log("Request body:", req.body);
+        console.log("User:", req.user ? { id: req.user._id, email: req.user.email, name: req.user.name } : "No user");
+
         const user = req.user;
-        if (!user) return res.status(401).json({ error: "Unauthorized" });
+        if (!user) {
+            console.log("❌ No user found in request");
+            return res.status(401).json({ error: "Unauthorized" });
+        }
 
         const { tier } = req.body;
+        console.log("Tier requested:", tier);
 
         if (!tier || !["free", "premium"].includes(tier)) {
+            console.log("❌ Invalid tier:", tier);
             return res.status(400).json({ error: "Invalid subscription tier" });
         }
 
+        console.log("🔍 Looking for plan with name:", tier);
         const plan = await Plan.findOne({ name: tier, isActive: true });
+        console.log("Plan found:", plan ? { id: plan._id, name: plan.name, price: plan.price } : "No plan found");
+        
         if (!plan) {
+            console.log("❌ Plan not found for tier:", tier);
             return res.status(404).json({ error: "Subscription plan not found" });
         }
 
         // Handle free tier - no payment needed
         if (tier === "free") {
-            // Check if user already has an active subscription
-            let subscription = await Subscription.findOne({
-                userId: user._id,
-                status: "active"
-            });
-
-            const endDate = new Date();
-            endDate.setMonth(endDate.getMonth() + 1); // Free tier also gets monthly access
-
-            if (subscription) {
-                // Update existing subscription to free
-                subscription.planId = plan._id as any;
-                subscription.tier = plan.name;
-                subscription.planName = plan.name;
-                subscription.flutterwavePlanId = plan.flutterwavePlanId;
-                subscription.price = plan.price;
-                subscription.currency = plan.currency;
-                subscription.interval = plan.interval;
-                subscription.features = plan.features;
-                subscription.startDate = new Date();
-                subscription.endDate = endDate;
-                await subscription.save();
-            } else {
-                // Create new free subscription
-                subscription = await Subscription.create({
+            console.log("✅ Processing free tier subscription");
+            try {
+                // Check if user already has an active subscription
+                let subscription = await Subscription.findOne({
                     userId: user._id,
-                    planId: plan._id,
-                    email: user.email,
-                    tier: plan.name,
-                    status: "active",
-                    startDate: new Date(),
-                    endDate: endDate,
-                    planName: plan.name,
-                    flutterwavePlanId: plan.flutterwavePlanId,
-                    price: plan.price,
-                    currency: plan.currency,
-                    interval: plan.interval,
-                    features: plan.features,
-                    isActive: true,
+                    status: "active"
                 });
-            }
+                console.log("Existing subscription:", subscription ? "Found" : "None");
 
-            return res.json({
-                success: true,
-                message: "Free subscription activated successfully",
-                subscription: {
-                    tier: subscription.tier,
-                    startDate: subscription.startDate,
-                    endDate: subscription.endDate,
+                const endDate = new Date();
+                endDate.setMonth(endDate.getMonth() + 1);
+
+                if (subscription) {
+                    console.log("📝 Updating existing subscription to free");
+                    subscription.planId = plan._id as any;
+                    subscription.tier = plan.name;
+                    subscription.planName = plan.name;
+                    subscription.flutterwavePlanId = plan.flutterwavePlanId;
+                    subscription.price = plan.price;
+                    subscription.currency = plan.currency;
+                    subscription.interval = plan.interval;
+                    subscription.features = plan.features;
+                    subscription.startDate = new Date();
+                    subscription.endDate = endDate;
+                    await subscription.save();
+                } else {
+                    console.log("🆕 Creating new free subscription");
+                    subscription = await Subscription.create({
+                        userId: user._id,
+                        planId: plan._id,
+                        email: user.email,
+                        tier: plan.name,
+                        status: "active",
+                        startDate: new Date(),
+                        endDate: endDate,
+                        planName: plan.name,
+                        flutterwavePlanId: plan.flutterwavePlanId,
+                        price: plan.price,
+                        currency: plan.currency,
+                        interval: plan.interval,
+                        features: plan.features,
+                        isActive: true,
+                    });
                 }
-            });
+
+                console.log("✅ Free subscription created/updated successfully");
+                return res.json({
+                    success: true,
+                    message: "Free subscription activated successfully",
+                    subscription: {
+                        tier: subscription.tier,
+                        startDate: subscription.startDate,
+                        endDate: subscription.endDate,
+                    }
+                });
+            } catch (freeError) {
+                console.error("❌ Error processing free subscription:", freeError);
+                throw freeError;
+            }
         }
 
         // Handle premium tier - payment required
+        console.log("💳 Processing premium tier subscription");
         const redirectUrl = process.env.FLW_REDIRECT_URL;
+        console.log("Redirect URL:", redirectUrl);
+        
         if (!redirectUrl) {
+            console.log("❌ FLW_REDIRECT_URL not set");
             return res.status(500).json({ error: "FLW_REDIRECT_URL not set" });
         }
 
         const txRef = `sub_${user._id}_${Date.now()}`;
+        console.log("Transaction reference:", txRef);
 
-        const response = await flw.post("/payments", {
+        const paymentPayload = {
             tx_ref: txRef,
             amount: plan.price,
             currency: plan.currency,
@@ -191,7 +217,7 @@ export const initializeSubscriptionPayment = async (req: Request, res: Response)
             customer: {
                 email: user.email,
                 name: user.name,
-                phone_number: user.phone,
+                phone_number: user.phone || "",
             },
             customizations: {
                 title: `${plan.name} Subscription`,
@@ -202,15 +228,35 @@ export const initializeSubscriptionPayment = async (req: Request, res: Response)
                 userId: user._id,
                 tier: plan.name
             }
-        });
+        };
+
+        console.log("💰 Payment payload:", JSON.stringify(paymentPayload, null, 2));
+
+        console.log("🌐 Making Flutterwave API call...");
+        const response = await flw.post("/payments", paymentPayload);
+        console.log("✅ Flutterwave response status:", response.status);
+        console.log("✅ Flutterwave response data:", JSON.stringify(response.data, null, 2));
 
         return res.json({
             checkoutUrl: response.data.data.link,
             txRef,
         });
     } catch (err: any) {
-        console.error(err?.response?.data || err.message);
-        return res.status(500).json({ error: "Payment initialization failed" });
+        console.error("=== SUBSCRIPTION PAYMENT ERROR ===");
+        console.error("Error name:", err.name);
+        console.error("Error message:", err.message);
+        console.error("Error stack:", err.stack);
+        
+        if (err.response) {
+            console.error("Error response status:", err.response.status);
+            console.error("Error response data:", JSON.stringify(err.response.data, null, 2));
+        }
+        
+        return res.status(500).json({ 
+            error: "Payment initialization failed", 
+            details: err.message,
+            ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+        });
     }
 };
 
@@ -499,6 +545,48 @@ export const verifySubscriptionPayment = async (req: Request, res: Response) => 
             message: "Payment verification failed",
             error: err.message 
         });
+    }
+};
+
+/**
+ * Test endpoint to debug subscription issues
+ * GET /api/subscription/debug
+ */
+export const debugSubscription = async (req: Request, res: Response) => {
+    try {
+        console.log("=== SUBSCRIPTION DEBUG ===");
+        
+        // Check if user is authenticated
+        const user = req.user;
+        console.log("User:", user ? { id: user._id, email: user.email, name: user.name } : "No user");
+        
+        // Check if plans exist
+        const plans = await Plan.find({});
+        console.log("All plans in database:", plans);
+        
+        // Check active plans
+        const activePlans = await Plan.find({ isActive: true });
+        console.log("Active plans:", activePlans);
+        
+        // Check environment variables
+        const envVars = {
+            FLW_REDIRECT_URL: process.env.FLW_REDIRECT_URL,
+            FLW_SECRET_KEY: process.env.FLW_SECRET_KEY ? "SET" : "NOT SET",
+            FLW_PUBLIC_KEY: process.env.FLW_PUBLIC_KEY ? "SET" : "NOT SET",
+        };
+        console.log("Environment variables:", envVars);
+        
+        return res.json({
+            success: true,
+            user: user ? { id: user._id, email: user.email, name: user.name } : null,
+            plans: plans,
+            activePlans: activePlans,
+            envVars: envVars
+        });
+        
+    } catch (error: any) {
+        console.error("Debug error:", error);
+        return res.status(500).json({ error: error.message });
     }
 };
 

@@ -2,7 +2,7 @@
 import { Router } from "express";
 
 import { createPayment } from "../../controllers/payment.controller";
-import { createPlan,  initializeSubscriptionPayment, verifySubscriptionPayment, getSubscriptionStatus } from "../../controllers/subscription.controller";
+import { createPlan,  initializeSubscriptionPayment, verifySubscriptionPayment, getSubscriptionStatus, debugSubscription } from "../../controllers/subscription.controller";
 import { chargeAndTokenize, createTokenizedCharge } from "../../controllers/token.controller";
 import { createRecipient, createTransfer } from "../../controllers/transfer.controller";
 import { handleWebhook } from "../../controllers/webhook";
@@ -51,6 +51,9 @@ router.get("/history/:userId", protect, getPaymentHistory);
 
 //Event payment status (authenticated users only)
 router.get("/events/status", protect, getEventPaymentStatus);
+
+// Debug subscription endpoint
+router.get("/subscription/debug", protect, debugSubscription);
 
 
 
