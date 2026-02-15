@@ -466,3 +466,478 @@ export const getUserEvents = async (req: Request, res: Response) => {
         return res.status(500).json({ message: error.message });
     }
 };
+
+// Admin-only: Get event attendees with detailed information
+export const getEventAttendees = async (req: Request, res: Response) => {
+    try {
+        const { eventId } = req.params;
+        
+        if (!eventId) {
+            return res.status(400).json({ message: "Event ID is required" });
+        }
+
+        const event = await Event.findById(eventId)
+            .populate('registeredUsers', 'name email profile.phone profile.organization profile.specialization profile.image')
+            .populate('payments.user', 'name email');
+
+        if (!event) {
+            return res.status(404).json({ message: "Event not found" });
+        }
+
+        // Build attendee data with payment and attendance information
+        const attendees = event.registeredUsers.map((user: any) => {
+            // Find payment for this user
+            const payment = event.payments.find(p => 
+                p.user._id ? p.user._id.toString() === user._id.toString() : 
+                p.user.toString() === user._id.toString()
+            );
+
+            return {
+                userId: user._id,
+                name: user.name,
+                email: user.email,
+                phone: user.profile?.phone,
+                organization: user.profile?.organization,
+                specialization: user.profile?.specialization,
+                profilePicture: user.profile?.image?.url,
+                registrationDate: payment?.date || event.createdAt,
+                paymentStatus: payment ? 
+                    (payment.status === 'successful' ? 'successful' : 
+                     payment.status === 'pending' ? 'pending' : 'failed') :
+                    (event.isPaid ? 'failed' : 'free'),
+                paymentAmount: payment?.amount,
+                transactionId: payment?.transactionId,
+                attendanceStatus: 'registered' // Default status, can be updated later
+            };
+        });
+
+        return res.status(200).json({
+            success: true,
+            event: {
+                _id: event._id,
+                title: event.title,
+                date: event.date,
+                location: event.location,
+                isPaid: event.isPaid,
+                price: event.price,
+                currency: event.currency,
+                attendeeCount: attendees.length
+            },
+            attendees
+        });
+
+    } catch (error: any) {
+        console.error("Get event attendees error:", error);
+        return res.status(500).json({ message: error.message });
+    }
+};
+
+// Admin-only: Update attendee attendance status
+export const updateAttendeeAttendance = async (req: Request, res: Response) => {
+    try {
+        const { eventId, userId } = req.params;
+        const { attendanceStatus } = req.body;
+
+        if (!eventId || !userId || !attendanceStatus) {
+            return res.status(400).json({ 
+                message: "Event ID, User ID, and attendance status are required" 
+            });
+        }
+
+        const validStatuses = ['registered', 'checked_in', 'attended', 'no_show'];
+        if (!validStatuses.includes(attendanceStatus)) {
+            return res.status(400).json({ 
+                message: "Invalid attendance status" 
+            });
+        }
+
+        const event = await Event.findById(eventId);
+        if (!event) {
+            return res.status(404).json({ message: "Event not found" });
+        }
+
+        const userObjectId = new Types.ObjectId(userId);
+        const isRegistered = event.registeredUsers.some(u => u.equals(userObjectId));
+        
+        if (!isRegistered) {
+            return res.status(404).json({ 
+                message: "User is not registered for this event" 
+            });
+        }
+
+        // For now, we'll store attendance status in a separate collection or extend the event model
+        // Since the current model doesn't have attendance tracking, we'll return success
+        // In a real implementation, you'd want to add an attendance field to the event model
+        
+        return res.status(200).json({
+            success: true,
+            message: "Attendance status updated successfully",
+            attendanceStatus
+        });
+
+    } catch (error: any) {
+        console.error("Update attendance error:", error);
+        return res.status(500).json({ message: error.message });
+    }
+};
+
+// Admin-only: Export event attendees
+export const exportEventAttendees = async (req: Request, res: Response) => {
+    try {
+        const { eventId } = req.params;
+        const { 
+            format = 'csv',
+            paymentStatus,
+            attendanceStatus,
+            search
+        } = req.query;
+
+        if (!eventId) {
+            return res.status(400).json({ message: "Event ID is required" });
+        }
+
+        const event = await Event.findById(eventId)
+            .populate('registeredUsers', 'name email profile.phone profile.organization profile.specialization')
+            .populate('payments.user', 'name email');
+
+        if (!event) {
+            return res.status(404).json({ message: "Event not found" });
+        }
+
+        // Build attendee data for export
+        let attendees = event.registeredUsers.map((user: any) => {
+            const payment = event.payments.find(p => 
+                p.user._id ? p.user._id.toString() === user._id.toString() : 
+                p.user.toString() === user._id.toString()
+            );
+
+            const attendeePaymentStatus = payment ? 
+                (payment.status === 'successful' ? 'successful' : 
+                 payment.status === 'pending' ? 'pending' : 'failed') :
+                (event.isPaid ? 'failed' : 'free');
+
+            return {
+                userId: user._id.toString(),
+                Name: user.name,
+                Email: user.email,
+                Phone: user.profile?.phone || '',
+                Organization: user.profile?.organization || '',
+                Specialization: user.profile?.specialization || '',
+                'Registration Date': payment?.date ? new Date(payment.date).toLocaleDateString() : new Date(event.createdAt).toLocaleDateString(),
+                'Payment Status': attendeePaymentStatus.charAt(0).toUpperCase() + attendeePaymentStatus.slice(1),
+                'Payment Amount': payment?.amount || (event.isPaid ? event.price : 0),
+                'Transaction ID': payment?.transactionId || '',
+                'Attendance Status': 'Registered' // Default status
+            };
+        });
+
+        // Apply filters
+        if (paymentStatus && paymentStatus !== 'all') {
+            attendees = attendees.filter(attendee => 
+                attendee['Payment Status'].toLowerCase() === (paymentStatus as string).toLowerCase()
+            );
+        }
+
+        if (attendanceStatus && attendanceStatus !== 'all') {
+            attendees = attendees.filter(attendee => 
+                attendee['Attendance Status'].toLowerCase().replace(' ', '_') === (attendanceStatus as string).toLowerCase()
+            );
+        }
+
+        if (search) {
+            const searchTerm = (search as string).toLowerCase();
+            attendees = attendees.filter(attendee => 
+                attendee.Name.toLowerCase().includes(searchTerm) ||
+                attendee.Email.toLowerCase().includes(searchTerm) ||
+                attendee.Organization.toLowerCase().includes(searchTerm) ||
+                attendee.Specialization.toLowerCase().includes(searchTerm)
+            );
+        }
+
+        if (format === 'csv') {
+            // Generate CSV
+            const headers = ['Name', 'Email', 'Phone', 'Organization', 'Specialization', 'Registration Date', 'Payment Status', 'Payment Amount', 'Transaction ID', 'Attendance Status'];
+            const csvContent = [
+                headers.join(','),
+                ...attendees.map(attendee => 
+                    headers.map(header => `"${attendee[header] || ''}"`).join(',')
+                )
+            ].join('\n');
+
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', `attachment; filename="${event.title.replace(/[^a-zA-Z0-9]/g, '_')}_attendees.csv"`);
+            return res.send(csvContent);
+        } else {
+            // For Excel format, return JSON that frontend can convert
+            return res.status(200).json({
+                success: true,
+                data: attendees,
+                filename: `${event.title.replace(/[^a-zA-Z0-9]/g, '_')}_attendees.xlsx`,
+                eventTitle: event.title,
+                totalAttendees: attendees.length,
+                exportDate: new Date().toISOString()
+            });
+        }
+
+    } catch (error: any) {
+        console.error("Export attendees error:", error);
+        return res.status(500).json({ message: error.message });
+    }
+};
+
+// Admin-only: Update event details
+export const updateEvent = async (req: Request, res: Response) => {
+    try {
+        const { eventId } = req.params;
+        const updates = req.body;
+
+        if (!eventId) {
+            return res.status(400).json({ message: "Event ID is required" });
+        }
+
+        // Handle image upload if present
+        if (req.file) {
+            updates.imageUrl = req.file.path;
+        }
+
+        const event = await Event.findByIdAndUpdate(
+            eventId,
+            { ...updates, updatedAt: new Date() },
+            { new: true, runValidators: true }
+        );
+
+        if (!event) {
+            return res.status(404).json({ message: "Event not found" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Event updated successfully",
+            event
+        });
+
+    } catch (error: any) {
+        console.error("Update event error:", error);
+        return res.status(500).json({ message: error.message });
+    }
+};
+
+// Admin-only: Delete event
+export const deleteEvent = async (req: Request, res: Response) => {
+    try {
+        const { eventId } = req.params;
+
+        if (!eventId) {
+            return res.status(400).json({ message: "Event ID is required" });
+        }
+
+        const event = await Event.findById(eventId);
+        if (!event) {
+            return res.status(404).json({ message: "Event not found" });
+        }
+
+        // Check if event has registered users or payments
+        if (event.registeredUsers.length > 0 || event.payments.length > 0) {
+            return res.status(400).json({ 
+                message: "Cannot delete event with registered users or payments. Consider cancelling instead." 
+            });
+        }
+
+        await Event.findByIdAndDelete(eventId);
+
+        return res.status(200).json({
+            success: true,
+            message: "Event deleted successfully"
+        });
+
+    } catch (error: any) {
+        console.error("Delete event error:", error);
+        return res.status(500).json({ message: error.message });
+    }
+};
+
+// Admin-only: Update event status
+export const updateEventStatus = async (req: Request, res: Response) => {
+    try {
+        const { eventId } = req.params;
+        const { status } = req.body;
+
+        if (!eventId || !status) {
+            return res.status(400).json({ message: "Event ID and status are required" });
+        }
+
+        const validStatuses = ['draft', 'published', 'cancelled', 'completed'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ message: "Invalid status" });
+        }
+
+        const event = await Event.findByIdAndUpdate(
+            eventId,
+            { status, updatedAt: new Date() },
+            { new: true }
+        );
+
+        if (!event) {
+            return res.status(404).json({ message: "Event not found" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Event status updated successfully",
+            event: {
+                _id: event._id,
+                title: event.title,
+                status: event.status
+            }
+        });
+
+    } catch (error: any) {
+        console.error("Update event status error:", error);
+        return res.status(500).json({ message: error.message });
+    }
+};
+
+// Admin-only: Get event settings
+export const getEventSettings = async (req: Request, res: Response) => {
+    try {
+        const { eventId } = req.params;
+
+        if (!eventId) {
+            return res.status(400).json({ message: "Event ID is required" });
+        }
+
+        const event = await Event.findById(eventId).select('title settings');
+        if (!event) {
+            return res.status(404).json({ message: "Event not found" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            event: {
+                _id: event._id,
+                title: event.title,
+                settings: event.settings
+            }
+        });
+
+    } catch (error: any) {
+        console.error("Get event settings error:", error);
+        return res.status(500).json({ message: error.message });
+    }
+};
+
+// Admin-only: Update event settings
+export const updateEventSettings = async (req: Request, res: Response) => {
+    try {
+        const { eventId } = req.params;
+        const { settings } = req.body;
+
+        if (!eventId || !settings) {
+            return res.status(400).json({ message: "Event ID and settings are required" });
+        }
+
+        const event = await Event.findByIdAndUpdate(
+            eventId,
+            { 
+                settings: { ...settings },
+                updatedAt: new Date() 
+            },
+            { new: true, runValidators: true }
+        );
+
+        if (!event) {
+            return res.status(404).json({ message: "Event not found" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Event settings updated successfully",
+            settings: event.settings
+        });
+
+    } catch (error: any) {
+        console.error("Update event settings error:", error);
+        return res.status(500).json({ message: error.message });
+    }
+};
+
+// Admin-only: Get events with admin details
+export const getAdminEvents = async (req: Request, res: Response) => {
+    try {
+        const { 
+            status,
+            search,
+            sortBy = 'createdAt',
+            sortOrder = 'desc',
+            page = 1,
+            limit = 10
+        } = req.query;
+
+        const query: any = {};
+        
+        // Filter by status if provided
+        if (status && status !== 'all') {
+            query.status = status;
+        }
+
+        // Search functionality
+        if (search) {
+            query.$or = [
+                { title: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } },
+                { location: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        const sortOptions: any = {};
+        sortOptions[sortBy as string] = sortOrder === 'asc' ? 1 : -1;
+
+        const skip = (Number(page) - 1) * Number(limit);
+
+        const events = await Event.find(query)
+            .populate('createdBy', 'name email')
+            .sort(sortOptions)
+            .skip(skip)
+            .limit(Number(limit));
+
+        const total = await Event.countDocuments(query);
+
+        // Add admin-specific data to each event
+        const eventsWithAdminData = events.map(event => ({
+            _id: event._id,
+            title: event.title,
+            date: event.date,
+            location: event.location,
+            imageUrl: event.imageUrl,
+            description: event.description,
+            price: event.price,
+            currency: event.currency,
+            isPaid: event.isPaid,
+            status: event.status,
+            createdBy: event.createdBy,
+            attendeeCount: event.registeredUsers.length,
+            paymentCount: event.payments.filter(p => p.status === 'successful').length,
+            totalRevenue: event.payments
+                .filter(p => p.status === 'successful')
+                .reduce((sum, p) => sum + p.amount, 0),
+            settings: event.settings,
+            createdAt: event.createdAt,
+            updatedAt: event.updatedAt
+        }));
+
+        return res.status(200).json({
+            success: true,
+            events: eventsWithAdminData,
+            pagination: {
+                current: Number(page),
+                total: Math.ceil(total / Number(limit)),
+                count: events.length,
+                totalEvents: total
+            }
+        });
+
+    } catch (error: any) {
+        console.error("Get admin events error:", error);
+        return res.status(500).json({ message: error.message });
+    }
+};

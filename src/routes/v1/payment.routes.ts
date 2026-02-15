@@ -9,7 +9,7 @@ import { handleWebhook } from "../../controllers/webhook";
 import { getEventPaymentStatus, registerEventPayment, verifyEventPayment } from "../../controllers/event.controller";
 import { protect } from "../../middleware/auth.middleware";
 import { authorizeRoles } from "../../middleware/role.middleware";
-import { getPaymentHistory, getAdminEventPayments, getEventPaymentStats, getAdminMemberPayments, getMemberPaymentStats } from "../../controllers/payment.history.controller";
+import { getPaymentHistory, getAdminEventPayments, getEventPaymentStats, getAdminMemberPayments, getMemberPaymentStats, getEventPaymentAnalytics, getFilteredEventPayments, exportEventPayments } from "../../controllers/payment.history.controller";
 
 const router = Router();
 
@@ -55,6 +55,9 @@ router.get("/events/status", protect, getEventPaymentStatus);
 
 // Admin routes for event payment oversight
 router.get("/admin/events/payments", protect, authorizeRoles("admin"), getAdminEventPayments);
+router.get("/admin/events/payments/filtered", protect, authorizeRoles("admin"), getFilteredEventPayments);
+router.get("/admin/events/payments/analytics", protect, authorizeRoles("admin"), getEventPaymentAnalytics);
+router.get("/admin/events/payments/export", protect, authorizeRoles("admin"), exportEventPayments);
 router.get("/admin/events/stats", protect, authorizeRoles("admin"), getEventPaymentStats);
 
 // Admin routes for member payment oversight
