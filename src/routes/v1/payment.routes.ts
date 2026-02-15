@@ -8,7 +8,8 @@ import { createRecipient, createTransfer } from "../../controllers/transfer.cont
 import { handleWebhook } from "../../controllers/webhook";
 import { getEventPaymentStatus, registerEventPayment, verifyEventPayment } from "../../controllers/event.controller";
 import { protect } from "../../middleware/auth.middleware";
-import { getPaymentHistory } from "../../controllers/payment.history.controller";
+import { authorizeRoles } from "../../middleware/role.middleware";
+import { getPaymentHistory, getAdminEventPayments, getEventPaymentStats } from "../../controllers/payment.history.controller";
 
 const router = Router();
 
@@ -51,6 +52,10 @@ router.get("/history/:userId", protect, getPaymentHistory);
 
 //Event payment status (authenticated users only)
 router.get("/events/status", protect, getEventPaymentStatus);
+
+// Admin routes for event payment oversight
+router.get("/admin/events/payments", protect, authorizeRoles("admin"), getAdminEventPayments);
+router.get("/admin/events/stats", protect, authorizeRoles("admin"), getEventPaymentStats);
 
 // Debug subscription endpoint
 router.get("/subscription/debug", protect, debugSubscription);
