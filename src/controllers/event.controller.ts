@@ -94,7 +94,23 @@ export const createEvent = async (req, res) => {
 export const getAllEvents = async (req, res) => {
     try {
         const events = await Event.find().sort({ createdAt: -1 });
-        res.status(200).json(events);
+        
+        // Add capacity information to each event
+        const eventsWithCapacity = events.map(event => {
+            const eventObj = event.toObject();
+            const currentCapacity = event.registeredUsers?.length || 0;
+            const maxCapacity = event.settings?.maxCapacity;
+            
+            return {
+                ...eventObj,
+                currentCapacity,
+                maxCapacity,
+                isFull: maxCapacity ? currentCapacity >= maxCapacity : false,
+                spotsRemaining: maxCapacity ? Math.max(0, maxCapacity - currentCapacity) : null
+            };
+        });
+        
+        res.status(200).json(eventsWithCapacity);
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }
@@ -106,7 +122,20 @@ export const getSingleEvent = async (req, res) => {
 
         if (!event) return res.status(404).json({ message: "Event not found" });
 
-        res.status(200).json(event);
+        // Add capacity information
+        const eventObj = event.toObject();
+        const currentCapacity = event.registeredUsers?.length || 0;
+        const maxCapacity = event.settings?.maxCapacity;
+        
+        const eventWithCapacity = {
+            ...eventObj,
+            currentCapacity,
+            maxCapacity,
+            isFull: maxCapacity ? currentCapacity >= maxCapacity : false,
+            spotsRemaining: maxCapacity ? Math.max(0, maxCapacity - currentCapacity) : null
+        };
+
+        res.status(200).json(eventWithCapacity);
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }
@@ -132,14 +161,31 @@ export const registerEventPayment = async (req, res) => {
 
         const userObjectId = new Types.ObjectId(userId);
 
+        // Check if user is already registered
+        const alreadyRegistered = event.registeredUsers.some(
+            (u) => u.equals(userObjectId)
+        );
+        if (alreadyRegistered) {
+            return res.status(400).json({ message: "You are already registered for this event" });
+        }
+
+        // Check capacity limit
+        if (event.settings?.maxCapacity && event.settings.maxCapacity > 0) {
+            const currentCapacity = event.registeredUsers.length;
+            if (currentCapacity >= event.settings.maxCapacity) {
+                return res.status(400).json({ 
+                    message: "Event is full. Maximum capacity reached.",
+                    isFull: true,
+                    maxCapacity: event.settings.maxCapacity,
+                    currentCapacity: currentCapacity
+                });
+            }
+        }
+
         // Free events: register directly
         if (!event.isPaid || event.price === 0) {
-            const alreadyRegistered = event.registeredUsers.some(
-                (u) => u.equals(userObjectId)
-            );
-            if (!alreadyRegistered) {
-                event.registeredUsers.push(userObjectId);
-                await event.save();
+            event.registeredUsers.push(userObjectId);
+            await event.save();
 
                 // Send free event registration confirmation email
                 try {
@@ -161,7 +207,6 @@ export const registerEventPayment = async (req, res) => {
                 } catch (emailError) {
                     console.error("Failed to send free event confirmation email:", emailError);
                 }
-            }
             return res.status(200).json({ message: "Registered for free event" });
         }
 
@@ -279,6 +324,20 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
         
         if (!alreadyProcessed) {
             const userObjectId = new Types.ObjectId(userId);
+            
+            // Check capacity limit before finalizing registration
+            if (event.settings?.maxCapacity && event.settings.maxCapacity > 0) {
+                const currentCapacity = event.registeredUsers.length;
+                if (currentCapacity >= event.settings.maxCapacity) {
+                    // Event became full during payment process
+                    return res.status(400).json({ 
+                        status: "failed",
+                        message: "Event became full while processing your payment. Please contact support for a refund.",
+                        isFull: true,
+                        transactionId: data.id
+                    });
+                }
+            }
             
             // Add to registered users if not already there
             if (!event.registeredUsers.some((u) => u.equals(userObjectId))) {
