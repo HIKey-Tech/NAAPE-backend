@@ -21,6 +21,7 @@ import {
     deleteReplyAdmin,
     bulkReplyActions,
     getForumUsers,
+    getForumUserMetrics,
     banUser,
     unbanUser,
     getUserForumActivity,
@@ -74,6 +75,7 @@ router.delete("/forum/replies/:replyId", deleteReplyAdmin);
 router.post("/forum/replies/bulk-action", bulkReplyActions);
 
 // ============ USER MANAGEMENT ROUTES ============
+router.get("/forum/users/metrics", getForumUserMetrics);
 router.get("/forum/users", getForumUsers);
 router.post("/forum/users/:userId/ban", banUser);
 router.delete("/forum/users/:userId/ban", unbanUser);

@@ -958,6 +958,72 @@ export const getForumUsers = async (req: Request, res: Response) => {
     }
 };
 
+export const getForumUserMetrics = async (req: Request, res: Response) => {
+    try {
+        // Get total users count
+        const totalUsers = await User.countDocuments();
+
+        // Get active bans count
+        const activeBans = await UserForumBan.countDocuments({ 
+            isActive: true,
+            $or: [
+                { expiresAt: { $exists: false } }, // Permanent ban
+                { expiresAt: { $gt: new Date() } } // Active temporary ban
+            ]
+        });
+
+        // Get active users (users without active bans)
+        const activeUsers = totalUsers - activeBans;
+
+        // Get total threads and replies across all users
+        const [totalThreads, totalReplies] = await Promise.all([
+            ForumThread.countDocuments(),
+            ForumReply.countDocuments()
+        ]);
+
+        const totalPosts = totalThreads + totalReplies;
+
+        // Get breakdown by ban type
+        const banBreakdown = await UserForumBan.aggregate([
+            {
+                $match: {
+                    isActive: true,
+                    $or: [
+                        { expiresAt: { $exists: false } },
+                        { expiresAt: { $gt: new Date() } }
+                    ]
+                }
+            },
+            {
+                $group: {
+                    _id: "$banType",
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const metrics = {
+            totalUsers,
+            activeUsers,
+            restrictedUsers: activeBans,
+            totalPosts,
+            breakdown: {
+                permanent: banBreakdown.find(b => b._id === 'permanent')?.count || 0,
+                temporary: banBreakdown.find(b => b._id === 'temporary')?.count || 0,
+                mute: banBreakdown.find(b => b._id === 'mute')?.count || 0
+            }
+        };
+
+        res.status(200).json({
+            message: "User metrics retrieved successfully",
+            data: metrics
+        });
+    } catch (error: any) {
+        console.error("Error fetching user metrics:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
 export const banUser = async (req: Request, res: Response) => {
     try {
         const { userId } = req.params;
