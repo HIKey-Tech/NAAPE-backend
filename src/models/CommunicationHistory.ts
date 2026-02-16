@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface ICommunicationHistory extends Document {
-    eventId: mongoose.Types.ObjectId;
+    eventId?: mongoose.Types.ObjectId;
     type: 'email' | 'sms' | 'push';
     subject: string;
     content: string;
@@ -16,7 +16,7 @@ export interface ICommunicationHistory extends Document {
 
 const CommunicationHistorySchema = new Schema<ICommunicationHistory>(
     {
-        eventId: { type: Schema.Types.ObjectId, ref: "Event", required: true },
+        eventId: { type: Schema.Types.ObjectId, ref: "Event", required: false },
         type: { 
             type: String, 
             enum: ['email', 'sms', 'push'], 
