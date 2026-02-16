@@ -26,9 +26,24 @@ export const createPublication = async (req: Request, res: Response) => {
         console.log("  - status from request:", status);
         console.log("  - authorId:", authorId);
 
-        // Validate status - default to draft if not provided or invalid
-        const validStatuses = ["draft", "pending"];
-        const publicationStatus = validStatuses.includes(status) ? status : "draft";
+        // Get user to check role
+        const user = await User.findById(authorId);
+        const userRole = user?.role;
+
+        console.log("🟢 [BACKEND] User role:", userRole);
+
+        // Determine publication status based on user role
+        let publicationStatus = "draft";
+        
+        if (userRole === "admin" || userRole === "editor") {
+            // Admins and editors can set any status, default to "approved" if not specified
+            const validStatuses = ["draft", "pending", "approved"];
+            publicationStatus = validStatuses.includes(status) ? status : "approved";
+        } else {
+            // Regular members can only create draft or pending
+            const validStatuses = ["draft", "pending"];
+            publicationStatus = validStatuses.includes(status) ? status : "draft";
+        }
 
         console.log("🟢 [BACKEND] Final status:", publicationStatus);
 
@@ -91,11 +106,13 @@ export const createPublication = async (req: Request, res: Response) => {
                 console.error("Failed to notify admins:", error);
             }
         } else {
-            console.log("🟢 [BACKEND] Skipping emails for draft publication");
+            console.log("🟢 [BACKEND] Skipping emails for draft/approved publication");
         }
 
         const message = publicationStatus === "draft" 
             ? "Publication saved as draft successfully."
+            : publicationStatus === "approved"
+            ? "Publication published successfully."
             : "Publication submitted successfully and awaiting approval.";
 
         res.status(201).json({
