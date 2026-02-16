@@ -5,7 +5,9 @@ import {
     getAllPublications,
     getPublicationStats,
     deletePublication,
-    updatePublication
+    updatePublication,
+    approvePublication,
+    rejectPublication
 } from "../../controllers/admin.publication.controller";
 
 const router = express.Router();
@@ -18,6 +20,12 @@ router.get("/", getAllPublications);
 
 // Get publication statistics
 router.get("/stats", getPublicationStats);
+
+// Approve publication
+router.patch("/:id/approve", approvePublication);
+
+// Reject publication
+router.patch("/:id/reject", rejectPublication);
 
 // Delete any publication
 router.delete("/:id", deletePublication);

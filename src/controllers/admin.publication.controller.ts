@@ -170,3 +170,70 @@ export const updatePublication = async (req: Request, res: Response) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+// Approve publication (admin only)
+export const approvePublication = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        const publication = await Publication.findById(id).populate("author", "name email");
+
+        if (!publication) {
+            return res.status(404).json({ message: "Publication not found" });
+        }
+
+        publication.status = "approved";
+        await publication.save();
+
+        // Notify the author
+        const authorId = (publication.author as any)._id;
+        await Notification.create({
+            user: authorId,
+            title: "Publication Approved",
+            message: `Your publication "${publication.title}" has been approved and is now published.`,
+            type: "publication"
+        });
+
+        res.status(200).json({
+            message: "Publication approved successfully",
+            data: publication
+        });
+    } catch (error: any) {
+        console.error("Error approving publication:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// Reject publication (admin only)
+export const rejectPublication = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { reason } = req.body;
+
+        const publication = await Publication.findById(id).populate("author", "name email");
+
+        if (!publication) {
+            return res.status(404).json({ message: "Publication not found" });
+        }
+
+        publication.status = "rejected";
+        await publication.save();
+
+        // Notify the author
+        const authorId = (publication.author as any)._id;
+        await Notification.create({
+            user: authorId,
+            title: "Publication Rejected",
+            message: `Your publication "${publication.title}" has been rejected.${reason ? ` Reason: ${reason}` : ''}`,
+            type: "publication"
+        });
+
+        res.status(200).json({
+            message: "Publication rejected successfully",
+            data: publication
+        });
+    } catch (error: any) {
+        console.error("Error rejecting publication:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
