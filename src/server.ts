@@ -19,6 +19,7 @@ import planRoutes from "./routes/v1/plan.routes"
 import forumRoutes from "./routes/forum.routes"
 import adminForumRoutes from "./routes/v1/admin.forum.routes"
 import communicationsRoutes from "./routes/v1/communications.routes"
+import generalCommunicationsRoutes from "./routes/v1/general.communications.routes"
 import adminPublicationRoutes from "./routes/v1/admin.publication.routes"
 import adminNewsRoutes from "./routes/v1/admin.news.routes"
 
@@ -121,6 +122,9 @@ app.use(
 
 //communications route
 app.use("/api/v1/admin", communicationsRoutes);
+
+//general communications route
+app.use("/api/v1/admin/communications", generalCommunicationsRoutes);
 
 //admin forum routes
 app.use("/api/v1/admin", adminForumRoutes);
