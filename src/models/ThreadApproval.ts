@@ -19,8 +19,7 @@ const threadApprovalSchema = new Schema<IThreadApproval>(
         thread: {
             type: Schema.Types.ObjectId,
             ref: 'ForumThread',
-            required: true,
-            unique: true
+            required: true
         },
         status: {
             type: String,

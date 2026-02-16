@@ -74,7 +74,6 @@ const userForumBanSchema = new Schema<IUserForumBan>(
 );
 
 // Indexes for query performance
-userForumBanSchema.index({ user: 1, isActive: 1 });
 userForumBanSchema.index({ bannedBy: 1 });
 userForumBanSchema.index({ expiresAt: 1, isActive: 1 });
 userForumBanSchema.index({ banType: 1, isActive: 1 });
