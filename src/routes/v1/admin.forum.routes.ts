@@ -64,8 +64,8 @@ router.post("/forum/threads/bulk-action", bulkThreadActions);
 
 // Thread approval workflow
 router.get("/forum/threads/pending-approvals", getPendingApprovals);
-router.patch("/forum/threads/:threadId/approve", approveThread);
-router.patch("/forum/threads/:threadId/reject", rejectThread);
+router.post("/forum/threads/:threadId/approve", approveThread);
+router.post("/forum/threads/:threadId/reject", rejectThread);
 
 // ============ REPLY MODERATION ROUTES ============
 router.get("/forum/replies", getAllRepliesAdmin);
