@@ -203,7 +203,7 @@ export const approvedPublication = async (req: Request, res: Response) => {
 export const rejectPublication = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { reason } = req.body; // Optional rejection reason
+        const reason = req.body?.reason; // Optional rejection reason (safely access)
         
         const publication = await Publication.findByIdAndUpdate(
             id,

@@ -208,7 +208,7 @@ export const approvePublication = async (req: Request, res: Response) => {
 export const rejectPublication = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { reason } = req.body;
+        const reason = req.body?.reason; // Optional rejection reason (safely access)
 
         const publication = await Publication.findById(id).populate("author", "name email");
 
