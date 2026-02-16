@@ -20,6 +20,7 @@ import forumRoutes from "./routes/forum.routes"
 import adminForumRoutes from "./routes/v1/admin.forum.routes"
 import communicationsRoutes from "./routes/v1/communications.routes"
 import adminPublicationRoutes from "./routes/v1/admin.publication.routes"
+import adminNewsRoutes from "./routes/v1/admin.news.routes"
 
 
 // === Rate Limiting Middleware Setup ===
@@ -126,6 +127,9 @@ app.use("/api/v1/admin", adminForumRoutes);
 
 //admin publication routes
 app.use("/api/v1/admin/publications", adminPublicationRoutes);
+
+//admin news routes
+app.use("/api/v1/admin/news", adminNewsRoutes);
 
 //listen to port
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
