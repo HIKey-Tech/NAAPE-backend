@@ -17,6 +17,7 @@ import titleRoutes from "./routes/v1/ai.title";
 import membershipFormRoutes from "./routes/v1/membershipform.routes"
 import planRoutes from "./routes/v1/plan.routes"
 import forumRoutes from "./routes/forum.routes"
+import adminForumRoutes from "./routes/v1/admin.forum.routes"
 import communicationsRoutes from "./routes/v1/communications.routes"
 
 
@@ -118,6 +119,9 @@ app.use(
 
 //communications route
 app.use("/api/v1/admin", communicationsRoutes);
+
+//admin forum routes
+app.use("/api/v1/admin", adminForumRoutes);
 
 //listen to port
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));

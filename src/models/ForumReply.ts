@@ -7,6 +7,9 @@ export interface IForumReply extends Document {
     parentReply?: mongoose.Schema.Types.ObjectId;
     isEdited: boolean;
     editedAt?: Date;
+    moderationNotes?: string;
+    moderatedBy?: mongoose.Schema.Types.ObjectId;
+    moderatedAt?: Date;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -30,6 +33,12 @@ const forumReplySchema = new Schema<IForumReply>(
         },
         isEdited: { type: Boolean, default: false },
         editedAt: { type: Date },
+        moderationNotes: { type: String },
+        moderatedBy: {
+            type: Schema.Types.ObjectId,
+            ref: "User",
+        },
+        moderatedAt: { type: Date },
     },
     { timestamps: true }
 );

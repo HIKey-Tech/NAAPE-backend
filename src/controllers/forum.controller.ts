@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import ForumCategory from "../models/ForumCategory";
 import ForumThread from "../models/ForumThread";
 import ForumReply from "../models/ForumReply";
+import ForumReport from "../models/ForumReport";
 import ThreadView from "../models/ThreadView";
 import User from "../models/User";
 import sendEmail from "../utils/sendEmail";
@@ -535,6 +536,163 @@ export const deleteReply = async (req: Request, res: Response) => {
         await ForumReply.findByIdAndDelete(replyId);
 
         res.status(200).json({ message: "Reply deleted" });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ============ REPORTING ============
+
+export const reportThread = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const { threadId } = req.params;
+        const { reason, description } = req.body;
+
+        if (!reason) {
+            return res.status(400).json({ message: "Reason is required" });
+        }
+
+        // Validate reason
+        const validReasons = ['spam', 'harassment', 'inappropriate', 'off-topic', 'other'];
+        if (!validReasons.includes(reason)) {
+            return res.status(400).json({ message: "Invalid reason" });
+        }
+
+        // Check if thread exists
+        const thread = await ForumThread.findById(threadId);
+        if (!thread) {
+            return res.status(404).json({ message: "Thread not found" });
+        }
+
+        // Check for duplicate report (handled by unique index, but we'll catch the error)
+        try {
+            const report = await ForumReport.create({
+                reportType: 'thread',
+                reportedContent: threadId,
+                reporter: userId,
+                reason,
+                description: description || undefined,
+            });
+
+            res.status(201).json({ 
+                message: "Thread reported successfully", 
+                data: { 
+                    reportId: report._id,
+                    status: report.status 
+                } 
+            });
+        } catch (error: any) {
+            if (error.code === 11000) {
+                return res.status(409).json({ message: "You have already reported this thread" });
+            }
+            throw error;
+        }
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const reportReply = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const { replyId } = req.params;
+        const { reason, description } = req.body;
+
+        if (!reason) {
+            return res.status(400).json({ message: "Reason is required" });
+        }
+
+        // Validate reason
+        const validReasons = ['spam', 'harassment', 'inappropriate', 'off-topic', 'other'];
+        if (!validReasons.includes(reason)) {
+            return res.status(400).json({ message: "Invalid reason" });
+        }
+
+        // Check if reply exists
+        const reply = await ForumReply.findById(replyId);
+        if (!reply) {
+            return res.status(404).json({ message: "Reply not found" });
+        }
+
+        // Check for duplicate report (handled by unique index, but we'll catch the error)
+        try {
+            const report = await ForumReport.create({
+                reportType: 'reply',
+                reportedContent: replyId,
+                reporter: userId,
+                reason,
+                description: description || undefined,
+            });
+
+            res.status(201).json({ 
+                message: "Reply reported successfully", 
+                data: { 
+                    reportId: report._id,
+                    status: report.status 
+                } 
+            });
+        } catch (error: any) {
+            if (error.code === 11000) {
+                return res.status(409).json({ message: "You have already reported this reply" });
+            }
+            throw error;
+        }
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const reportUser = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user.id;
+        const { userId: reportedUserId } = req.params;
+        const { reason, description } = req.body;
+
+        if (!reason) {
+            return res.status(400).json({ message: "Reason is required" });
+        }
+
+        // Validate reason
+        const validReasons = ['spam', 'harassment', 'inappropriate', 'off-topic', 'other'];
+        if (!validReasons.includes(reason)) {
+            return res.status(400).json({ message: "Invalid reason" });
+        }
+
+        // Check if user exists
+        const reportedUser = await User.findById(reportedUserId);
+        if (!reportedUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Prevent self-reporting
+        if (userId === reportedUserId) {
+            return res.status(400).json({ message: "You cannot report yourself" });
+        }
+
+        // Check for duplicate report (handled by unique index, but we'll catch the error)
+        try {
+            const report = await ForumReport.create({
+                reportType: 'user',
+                reportedUser: reportedUserId,
+                reporter: userId,
+                reason,
+                description: description || undefined,
+            });
+
+            res.status(201).json({ 
+                message: "User reported successfully", 
+                data: { 
+                    reportId: report._id,
+                    status: report.status 
+                } 
+            });
+        } catch (error: any) {
+            if (error.code === 11000) {
+                return res.status(409).json({ message: "You have already reported this user" });
+            }
+            throw error;
+        }
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }

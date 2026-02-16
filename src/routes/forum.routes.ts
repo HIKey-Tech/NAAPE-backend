@@ -14,6 +14,9 @@ import {
     createReply,
     updateReply,
     deleteReply,
+    reportThread,
+    reportReply,
+    reportUser,
 } from "../controllers/forum.controller";
 import { protect, optionalProtect } from "../middleware/auth.middleware";
 import { authorizeRoles } from "../middleware/role.middleware";
@@ -39,5 +42,10 @@ router.get("/threads/:threadId/replies", getRepliesByThread);
 router.post("/threads/:threadId/replies", protect, createReply);
 router.put("/replies/:replyId", protect, updateReply);
 router.delete("/replies/:replyId", protect, deleteReply);
+
+// ============ REPORTING ============
+router.post("/reports/thread/:threadId", protect, reportThread);
+router.post("/reports/reply/:replyId", protect, reportReply);
+router.post("/reports/user/:userId", protect, reportUser);
 
 export default router;
