@@ -423,11 +423,18 @@ export const verifySubscriptionPayment = async (req: Request, res: Response) => 
             });
         }
 
-        // Check if user already has an active subscription
+        // Check if user already has any subscription (active or not)
         let subscription = await Subscription.findOne({
-            userId: user._id,
-            status: "active"
-        });
+            userId: user._id
+        }).sort({ createdAt: -1 }); // Get the most recent one
+
+        // Calculate end date based on interval
+        const endDate = new Date();
+        if (plan.interval === "monthly") {
+            endDate.setMonth(endDate.getMonth() + 1);
+        } else if (plan.interval === "yearly") {
+            endDate.setFullYear(endDate.getFullYear() + 1);
+        }
 
         if (subscription) {
             // Update existing subscription
@@ -440,26 +447,13 @@ export const verifySubscriptionPayment = async (req: Request, res: Response) => 
             subscription.interval = plan.interval;
             subscription.features = plan.features;
             subscription.startDate = new Date();
-            
-            // Calculate end date based on interval
-            const endDate = new Date();
-            if (plan.interval === "monthly") {
-                endDate.setMonth(endDate.getMonth() + 1);
-            } else if (plan.interval === "yearly") {
-                endDate.setFullYear(endDate.getFullYear() + 1);
-            }
             subscription.endDate = endDate;
+            subscription.status = "active";
+            subscription.isActive = true;
             
             await subscription.save();
         } else {
             // Create new subscription
-            const endDate = new Date();
-            if (plan.interval === "monthly") {
-                endDate.setMonth(endDate.getMonth() + 1);
-            } else if (plan.interval === "yearly") {
-                endDate.setFullYear(endDate.getFullYear() + 1);
-            }
-
             subscription = await Subscription.create({
                 userId: user._id,
                 planId: plan._id,
