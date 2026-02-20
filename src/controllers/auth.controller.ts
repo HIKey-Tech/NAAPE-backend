@@ -7,9 +7,9 @@ import { welcomeEmailHTML } from "../utils/emailTemplatesHTML";
 
 export const registerUser = async (req: Request, res: Response) => {
     try {
-        const { name, email, password, role } = req.body;
+        const { name, email, password, role, profile, professional } = req.body;
         const normalizedEmail = email.trim().toLowerCase();
-        const user = await User.create({ name, email: normalizedEmail, password, role });
+        const user = await User.create({ name, email: normalizedEmail, password, role, profile, professional });
 
         // Send welcome email
         try {
@@ -55,8 +55,8 @@ export const loginUser = async (req: Request, res: Response) => {
 
         // Check if user is Google-only (no password set)
         if (user.authProvider === "google" && !user.password) {
-            return res.status(400).json({ 
-                message: "This account uses Google Sign-In. Please sign in with Google." 
+            return res.status(400).json({
+                message: "This account uses Google Sign-In. Please sign in with Google."
             });
         }
 
