@@ -74,16 +74,15 @@ export const updateProfile = async (req, res) => {
                 // Preserve existing image
                 const currentImage = user.profile?.image;
 
-                // Update profile with cleaned data
+                // Update only the fields that are provided, keeping existing values for others
                 user.profile = {
-                    ...user.profile,
-                    ...cleanedProfile,
+                    image: currentImage, // Always preserve the image first
+                    specialization: user.profile?.specialization,
+                    bio: user.profile?.bio,
+                    organization: user.profile?.organization,
+                    phone: user.profile?.phone,
+                    ...cleanedProfile, // Override with new values
                 };
-
-                // Always restore the existing image (never let it be overwritten by profile update)
-                if (currentImage) {
-                    user.profile.image = currentImage;
-                }
 
                 console.log("Updated user profile:", user.profile);
             } catch (parseError: any) {
