@@ -47,7 +47,7 @@ export const updateProfile = async (req, res) => {
         if (req.body.profile) {
             try {
                 const parsedProfile = JSON.parse(req.body.profile);
-                
+
                 // Remove any undefined, null, or "undefined" string values
                 const cleanedProfile = Object.fromEntries(
                     Object.entries(parsedProfile).filter(([key, value]) => {
@@ -58,16 +58,16 @@ export const updateProfile = async (req, res) => {
                         return true;
                     })
                 );
-                
+
                 // Preserve existing image
                 const currentImage = user.profile?.image;
-                
+
                 // Update profile with cleaned data
                 user.profile = {
                     ...user.profile,
                     ...cleanedProfile,
                 };
-                
+
                 // Always restore the existing image (never let it be overwritten by profile update)
                 if (currentImage) {
                     user.profile.image = currentImage;
@@ -118,7 +118,7 @@ export const updateProfile = async (req, res) => {
         });
     } catch (error: any) {
         console.error("Update profile error:", error);
-        res.status(500).json({ 
+        res.status(500).json({
             message: "Profile update failed",
             error: error?.message || "Unknown error occurred"
         });
@@ -210,8 +210,8 @@ export const changePassword = async (req, res) => {
 
         // Check if user has a password (not Google-only user)
         if (!user.password) {
-            return res.status(400).json({ 
-                message: "Cannot change password for Google-authenticated accounts." 
+            return res.status(400).json({
+                message: "Cannot change password for Google-authenticated accounts."
             });
         }
 
@@ -241,3 +241,28 @@ export const changePassword = async (req, res) => {
 };
 
 
+
+export const getPublicProfile = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        const user = await User.findById(id)
+            .select("name role profile specialization bio organization updatedAt createdAt")
+            .lean();
+
+        if (!user) return res.status(404).json({ message: "User not found" });
+
+        // Add stats (only approved ones for public profile)
+        const approvedPublications = await Publication.countDocuments({ author: id, status: "approved" });
+
+        res.status(200).json({
+            message: "Public profile fetched successfully",
+            data: {
+                ...user,
+                stats: { approved: approvedPublications },
+            },
+        });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
