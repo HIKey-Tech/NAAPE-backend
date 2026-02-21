@@ -71,18 +71,15 @@ export const updateProfile = async (req, res) => {
 
                 console.log("Cleaned profile:", cleanedProfile);
 
-                // Preserve existing image
-                const currentImage = user.profile?.image;
+                // Initialize profile if it doesn't exist
+                if (!user.profile) {
+                    user.profile = {};
+                }
 
-                // Update only the fields that are provided, keeping existing values for others
-                user.profile = {
-                    image: currentImage, // Always preserve the image first
-                    specialization: user.profile?.specialization,
-                    bio: user.profile?.bio,
-                    organization: user.profile?.organization,
-                    phone: user.profile?.phone,
-                    ...cleanedProfile, // Override with new values
-                };
+                // Update only the provided fields, keeping existing values
+                Object.keys(cleanedProfile).forEach(key => {
+                    user.profile[key] = cleanedProfile[key];
+                });
 
                 console.log("Updated user profile:", user.profile);
             } catch (parseError: any) {
@@ -97,10 +94,15 @@ export const updateProfile = async (req, res) => {
                 const parsedProfessional = JSON.parse(req.body.professional);
                 console.log("Parsed professional:", parsedProfessional);
 
-                user.professional = {
-                    ...user.professional,
-                    ...parsedProfessional,
-                };
+                // Initialize professional if it doesn't exist
+                if (!user.professional) {
+                    user.professional = {};
+                }
+
+                // Update only the provided fields
+                Object.keys(parsedProfessional).forEach(key => {
+                    user.professional[key] = parsedProfessional[key];
+                });
 
                 console.log("Updated user professional:", user.professional);
             } catch (parseError: any) {
