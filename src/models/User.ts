@@ -15,6 +15,7 @@ export interface IUser extends Document {
     resetPasswordExpire?: Date;
     googleId?: string;
     authProvider?: "local" | "google";
+    profileSlug?: string;
 
     profile: {
         image?: {
@@ -37,6 +38,7 @@ export interface IUser extends Document {
     matchePassword(enteredPassword: string): Promise<boolean>;
     generateAuthToken(): string;
     getResetPasswordToken(): string;
+    generateProfileSlug(): string;
 }
 
 const userSchema = new Schema<IUser>({
@@ -49,6 +51,7 @@ const userSchema = new Schema<IUser>({
     resetPasswordExpire: { type: Date },
     googleId: { type: String },
     authProvider: { type: String, enum: ["local", "google"], default: "local" },
+    profileSlug: { type: String, unique: true, sparse: true },
     profile: {
     image: {
         url: { type: String },
@@ -67,11 +70,18 @@ const userSchema = new Schema<IUser>({
     }
 }, { timestamps: true });
 
+// Combined pre-save hook for password hashing and profile slug generation
 userSchema.pre("save", async function (next) {
-    if (!this.isModified("password") || !this.password) {
-        return next();
+    // Hash password if modified
+    if (this.isModified("password") && this.password) {
+        this.password = await bcrypt.hash(this.password, 10);
     }
-    this.password = await bcrypt.hash(this.password, 10);
+    
+    // Generate profile slug if new user or name changed
+    if ((this.isNew || this.isModified("name")) && !this.profileSlug) {
+        this.profileSlug = await this.generateProfileSlug();
+    }
+    
     next();
 });
 
@@ -93,7 +103,6 @@ userSchema.methods.generateAuthToken = function () {
     return token;
 };
 
-
 userSchema.methods.getResetPasswordToken = function () {
     // Generate a random token (32 bytes for sufficient entropy)
     const resetToken = cryptoLib.randomBytes(32).toString("hex");
@@ -108,5 +117,25 @@ userSchema.methods.getResetPasswordToken = function () {
     return resetToken;
 };
 
+// Generate a unique profile slug from name
+userSchema.methods.generateProfileSlug = async function () {
+    const baseSlug = this.name
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s-]/g, '') // Remove special characters
+        .replace(/\s+/g, '-') // Replace spaces with hyphens
+        .replace(/-+/g, '-'); // Replace multiple hyphens with single hyphen
+
+    let slug = baseSlug;
+    let counter = 1;
+
+    // Check if slug exists and append number if needed
+    while (await mongoose.model<IUser>("User").findOne({ profileSlug: slug, _id: { $ne: this._id } })) {
+        slug = `${baseSlug}-${counter}`;
+        counter++;
+    }
+
+    return slug;
+};
 
 export default mongoose.model<IUser>("User", userSchema);

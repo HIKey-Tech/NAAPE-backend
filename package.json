@@ -9,7 +9,8 @@
     "create-admin": "ts-node src/scripts/createAdminUser.ts",
     "seed-forum": "ts-node src/scripts/seedForumCategories.ts",
     "make-subscribed": "ts-node src/scripts/makeUserSubscribed.ts",
-    "fix-subscription-index": "ts-node src/scripts/fixSubscriptionIndex.ts"
+    "fix-subscription-index": "ts-node src/scripts/fixSubscriptionIndex.ts",
+    "generate-slugs": "ts-node src/scripts/generateProfileSlugs.ts"
   },
   "keywords": [],
   "author": "",

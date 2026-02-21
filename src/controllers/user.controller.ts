@@ -275,14 +275,24 @@ export const getPublicProfile = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
 
-        const user = await User.findById(id)
-            .select("name role profile specialization bio organization updatedAt createdAt")
-            .lean();
+        // Try to find user by slug first, then by ID
+        let user;
+        if (id.match(/^[0-9a-fA-F]{24}$/)) {
+            // It's a valid MongoDB ObjectId
+            user = await User.findById(id)
+                .select("name email role profile professional isVerified createdAt updatedAt profileSlug")
+                .lean();
+        } else {
+            // It's a slug
+            user = await User.findOne({ profileSlug: id })
+                .select("name email role profile professional isVerified createdAt updatedAt profileSlug")
+                .lean();
+        }
 
         if (!user) return res.status(404).json({ message: "User not found" });
 
         // Add stats (only approved ones for public profile)
-        const approvedPublications = await Publication.countDocuments({ author: id, status: "approved" });
+        const approvedPublications = await Publication.countDocuments({ author: user._id, status: "approved" });
 
         res.status(200).json({
             message: "Public profile fetched successfully",
