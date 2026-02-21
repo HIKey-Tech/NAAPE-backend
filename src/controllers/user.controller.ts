@@ -33,10 +33,19 @@ export const getProfile = async (req: any, res: Response) => {
 
 export const updateProfile = async (req, res) => {
     try {
+        console.log("=== UPDATE PROFILE DEBUG ===");
+        console.log("User ID:", req.user?.id);
+        console.log("Request body:", req.body);
+        console.log("Request file:", req.file);
+
         const user = await User.findById(req.user.id);
         if (!user) {
+            console.error("User not found:", req.user.id);
             return res.status(404).json({ message: "User not found" });
         }
+
+        console.log("Current user profile:", user.profile);
+        console.log("Current user professional:", user.professional);
 
         // Update flat fields
         if (req.body.name) {
@@ -47,6 +56,7 @@ export const updateProfile = async (req, res) => {
         if (req.body.profile) {
             try {
                 const parsedProfile = JSON.parse(req.body.profile);
+                console.log("Parsed profile:", parsedProfile);
 
                 // Remove any undefined, null, or "undefined" string values
                 const cleanedProfile = Object.fromEntries(
@@ -58,6 +68,8 @@ export const updateProfile = async (req, res) => {
                         return true;
                     })
                 );
+
+                console.log("Cleaned profile:", cleanedProfile);
 
                 // Preserve existing image
                 const currentImage = user.profile?.image;
@@ -72,8 +84,11 @@ export const updateProfile = async (req, res) => {
                 if (currentImage) {
                     user.profile.image = currentImage;
                 }
-            } catch (parseError) {
-                return res.status(400).json({ message: "Invalid profile data format" });
+
+                console.log("Updated user profile:", user.profile);
+            } catch (parseError: any) {
+                console.error("Profile parse error:", parseError);
+                return res.status(400).json({ message: "Invalid profile data format", error: parseError?.message || "Parse error" });
             }
         }
 
@@ -81,12 +96,17 @@ export const updateProfile = async (req, res) => {
         if (req.body.professional) {
             try {
                 const parsedProfessional = JSON.parse(req.body.professional);
+                console.log("Parsed professional:", parsedProfessional);
+
                 user.professional = {
                     ...user.professional,
                     ...parsedProfessional,
                 };
-            } catch (parseError) {
-                return res.status(400).json({ message: "Invalid professional data format" });
+
+                console.log("Updated user professional:", user.professional);
+            } catch (parseError: any) {
+                console.error("Professional parse error:", parseError);
+                return res.status(400).json({ message: "Invalid professional data format", error: parseError?.message || "Parse error" });
             }
         }
 
@@ -109,7 +129,9 @@ export const updateProfile = async (req, res) => {
             };
         }
 
+        console.log("Attempting to save user...");
         await user.save();
+        console.log("User saved successfully");
 
         const sanitizedUser = await User.findById(user._id).select("-password");
         res.status(200).json({
@@ -117,10 +139,16 @@ export const updateProfile = async (req, res) => {
             data: sanitizedUser,
         });
     } catch (error: any) {
-        console.error("Update profile error:", error);
+        console.error("=== UPDATE PROFILE ERROR ===");
+        console.error("Error name:", error.name);
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+        console.error("Full error:", error);
+        
         res.status(500).json({
             message: "Profile update failed",
-            error: error?.message || "Unknown error occurred"
+            error: error?.message || "Unknown error occurred",
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 };
