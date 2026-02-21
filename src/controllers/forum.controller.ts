@@ -64,7 +64,7 @@ export const getThreadsByCategory = async (req: Request, res: Response) => {
         const skip = (page - 1) * limit;
 
         const threads = await ForumThread.find({ category: categoryId })
-            .populate("author", "name email role")
+            .populate("author", "name email role profile")
             .populate("category", "name slug")
             .sort({ isPinned: -1, lastActivity: -1 })
             .skip(skip)
@@ -120,7 +120,7 @@ export const getAllThreads = async (req: Request, res: Response) => {
         }
 
         const threads = await ForumThread.find(query)
-            .populate("author", "name email role")
+            .populate("author", "name email role profile")
             .populate("category", "name slug")
             .sort({ isPinned: -1, lastActivity: -1 })
             .skip(skip)
@@ -167,7 +167,7 @@ export const getThreadById = async (req: Request, res: Response) => {
         console.log("User ID:", userId);
 
         const thread = await ForumThread.findById(threadId)
-            .populate("author", "name email role")
+            .populate("author", "name email role profile")
             .populate("category", "name slug");
 
         if (!thread) {
@@ -261,7 +261,7 @@ export const createThread = async (req: Request, res: Response) => {
         });
 
         const populatedThread = await ForumThread.findById(thread._id)
-            .populate("author", "name email role")
+            .populate("author", "name email role profile")
             .populate("category", "name slug");
 
         res.status(201).json({ message: "Thread created", data: populatedThread });
@@ -292,7 +292,7 @@ export const updateThread = async (req: Request, res: Response) => {
         await thread.save();
 
         const updatedThread = await ForumThread.findById(threadId)
-            .populate("author", "name email role")
+            .populate("author", "name email role profile")
             .populate("category", "name slug");
 
         res.status(200).json({ message: "Thread updated", data: updatedThread });
@@ -385,7 +385,7 @@ export const getRepliesByThread = async (req: Request, res: Response) => {
         const skip = (page - 1) * limit;
 
         const replies = await ForumReply.find({ thread: threadId, parentReply: null })
-            .populate("author", "name email role")
+            .populate("author", "name email role profile")
             .sort({ createdAt: 1 })
             .skip(skip)
             .limit(limit);
@@ -394,7 +394,7 @@ export const getRepliesByThread = async (req: Request, res: Response) => {
         const repliesWithNested = await Promise.all(
             replies.map(async (reply) => {
                 const nestedReplies = await ForumReply.find({ parentReply: reply._id })
-                    .populate("author", "name email role")
+                    .populate("author", "name email role profile")
                     .sort({ createdAt: 1 });
                 
                 return {
@@ -451,7 +451,7 @@ export const createReply = async (req: Request, res: Response) => {
         await thread.save();
 
         const populatedReply = await ForumReply.findById(reply._id)
-            .populate("author", "name email role");
+            .populate("author", "name email role profile");
 
         // Send email notification to thread author
         const replier = await User.findById(userId);
@@ -505,7 +505,7 @@ export const updateReply = async (req: Request, res: Response) => {
         await reply.save();
 
         const updatedReply = await ForumReply.findById(replyId)
-            .populate("author", "name email role");
+            .populate("author", "name email role profile");
 
         res.status(200).json({ message: "Reply updated", data: updatedReply });
     } catch (error: any) {
