@@ -373,22 +373,47 @@ export const getSinglePublication = async (req: Request, res: Response) => {
             !!authorId &&
             authorId.toString() === userId.toString();
 
-        //if not approved and not author then block
-        if (publication.status !== "approved" && !isAuthor) {
+        const isAdmin = (req as any).user?.role === "admin" || (req as any).user?.role === "editor";
+
+        //if not approved and not author and not admin then block
+        if (publication.status !== "approved" && !isAuthor && !isAdmin) {
             return res.status(403).json({
                 message: "This publication is not available for public view"
             })
         }
 
+        // Check if user has subscription for full content access
+        const hasSubscription = userId && (req as any).user?.subscription?.status === "active";
+        const canViewFullContent = isAuthor || isAdmin || hasSubscription;
+
+        // Prepare response data with proper typing
+        const publicationObj = publication.toObject();
+        let responseData: any = { ...publicationObj };
+
+        // If user doesn't have subscription and isn't author/admin, provide preview only
+        if (!canViewFullContent && publication.status === "approved") {
+            // Provide preview (first 300 characters of content)
+            const previewLength = 300;
+            responseData.content = publication.content.length > previewLength
+                ? publication.content.substring(0, previewLength) + "..."
+                : publication.content;
+
+            responseData.isPreview = true;
+            responseData.requiresSubscription = true;
+        } else {
+            responseData.isPreview = false;
+            responseData.requiresSubscription = false;
+        }
+
         return res.status(200).json({
             message: "Publication fetched successfully",
-            data: publication
+            data: responseData
         })
     } catch (error: any) {
         return res.status(500).json({ message: error.message })
 
     }
-}
+};
 
 // Update my publication
 export const updateMyPublication = async (req: Request, res: Response) => {

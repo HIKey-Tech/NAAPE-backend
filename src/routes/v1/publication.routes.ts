@@ -51,18 +51,10 @@ router.post(
     createPublication
 );
 
-// Fetch a specific publication - REQUIRES ACTIVE SUBSCRIPTION for members to view
+// Fetch a specific publication - Public access for approved publications, subscription required for full content
 router.get(
     "/:id",
-    protect,
-    (req, res, next) => {
-        // Admins and editors bypass subscription check
-        if (req.user && (req.user.role === "admin" || req.user.role === "editor")) {
-            return next();
-        }
-        // Members need active subscription
-        return requireSubscription(req, res, next);
-    },
+    optionalProtect, // Allow both authenticated and unauthenticated access
     getSinglePublication
 );
 
