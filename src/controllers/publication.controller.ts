@@ -5,8 +5,8 @@ import Notification from "../models/Notification";
 import User from "../models/User";
 import mongoose from "mongoose";
 import sendEmail from "../utils/sendEmail";
-import { 
-    publicationSubmittedEmailHTML, 
+import {
+    publicationSubmittedEmailHTML,
     adminPublicationNotificationEmailHTML,
     publicationApprovedEmailHTML,
     publicationRejectedEmailHTML,
@@ -34,7 +34,7 @@ export const createPublication = async (req: Request, res: Response) => {
 
         // Determine publication status based on user role
         let publicationStatus = "draft";
-        
+
         if (userRole === "admin" || userRole === "editor") {
             // Admins and editors can set any status, default to "approved" if not specified
             const validStatuses = ["draft", "pending", "approved"];
@@ -109,11 +109,11 @@ export const createPublication = async (req: Request, res: Response) => {
             console.log("🟢 [BACKEND] Skipping emails for draft/approved publication");
         }
 
-        const message = publicationStatus === "draft" 
+        const message = publicationStatus === "draft"
             ? "Publication saved as draft successfully."
             : publicationStatus === "approved"
-            ? "Publication published successfully."
-            : "Publication submitted successfully and awaiting approval.";
+                ? "Publication published successfully."
+                : "Publication submitted successfully and awaiting approval.";
 
         res.status(201).json({
             message,
@@ -124,10 +124,10 @@ export const createPublication = async (req: Request, res: Response) => {
     }
 };
 
-// Fetch all approved publications (Public)
+// Fetch all approved publications (Public) - with pagination support
 export const getAllPublications = async (req: Request, res: Response) => {
     try {
-        const { status } = req.query;
+        const { status, page, limit, search, authorRole } = req.query;
 
         const filter: any = {};
 
@@ -136,13 +136,51 @@ export const getAllPublications = async (req: Request, res: Response) => {
             filter.status = status;
         }
 
-        const publications = await Publication.find(filter)
-            .populate("author", "name email role");
+        // Search filter
+        if (search) {
+            filter.$or = [
+                { title: { $regex: search, $options: "i" } },
+                { content: { $regex: search, $options: "i" } },
+            ];
+        }
+
+        // Pagination
+        const pageNum = parseInt(page as string) || 1;
+        const limitNum = parseInt(limit as string) || 0; // 0 = no limit (backward compat)
+        const skip = limitNum > 0 ? (pageNum - 1) * limitNum : 0;
+
+        const total = await Publication.countDocuments(filter);
+
+        let query = Publication.find(filter)
+            .populate("author", "name email role")
+            .sort({ createdAt: -1 });
+
+        if (limitNum > 0) {
+            query = query.skip(skip).limit(limitNum);
+        }
+
+        let publications = await query;
+
+        // Filter by author role on the populated field if specified
+        if (authorRole) {
+            const role = (authorRole as string).toLowerCase();
+            publications = publications.filter(
+                (pub: any) => pub.author?.role?.toLowerCase() === (role === "admin" ? "admin" : role)
+            );
+        }
+
+        const filteredTotal = authorRole ? publications.length : total;
 
         res.status(200).json({
             message: "All publications fetched successfully",
             count: publications.length,
             data: publications,
+            pagination: limitNum > 0 ? {
+                total: filteredTotal,
+                page: pageNum,
+                limit: limitNum,
+                pages: Math.ceil(filteredTotal / limitNum),
+            } : undefined,
         });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
@@ -189,7 +227,7 @@ export const approvedPublication = async (req: Request, res: Response) => {
             for (const member of members) {
                 // Skip the author
                 if (String(member._id) === String((publication.author as any)._id)) continue;
-                
+
                 try {
                     await sendEmail({
                         to: member.email,
@@ -221,7 +259,7 @@ export const rejectPublication = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const reason = req.body?.reason; // Optional rejection reason (safely access)
-        
+
         const publication = await Publication.findByIdAndUpdate(
             id,
             { status: "rejected" },

@@ -52,14 +52,38 @@ export const createNews = async (req: Request, res: Response) => {
     }
 };
 
-// Public: Get all news
-export const getAllNews = async (_req: Request, res: Response) => {
+export const getAllNews = async (req: Request, res: Response) => {
     try {
-        const news = await News.find().populate("author", "name email");
+        const { page = 1, limit = 10, search } = req.query;
+
+        const query: any = { status: "published" };
+
+        if (search) {
+            query.$or = [
+                { title: { $regex: search, $options: "i" } },
+                { content: { $regex: search, $options: "i" } }
+            ];
+        }
+
+        const skip = (Number(page) - 1) * Number(limit);
+
+        const news = await News.find(query)
+            .populate("author", "name email")
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(Number(limit));
+
+        const total = await News.countDocuments(query);
 
         res.status(200).json({
             count: news.length,
-            data: news
+            data: news,
+            pagination: {
+                total,
+                page: Number(page),
+                limit: Number(limit),
+                pages: Math.ceil(total / Number(limit))
+            }
         });
     } catch (error: any) {
         res.status(500).json({ message: error.message });

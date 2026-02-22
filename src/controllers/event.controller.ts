@@ -7,10 +7,10 @@ import { Types } from "mongoose";
 import { savePaymentHistory } from "../utils/savePaymentHistory";
 import sendEmail from "../utils/sendEmail";
 import { eventPaymentEmail } from "../utils/emailTemplates";
-import { 
-    eventPaymentEmailHTML, 
+import {
+    eventPaymentEmailHTML,
     eventRegistrationFreeEmailHTML,
-    newEventNotificationEmailHTML 
+    newEventNotificationEmailHTML
 } from "../utils/emailTemplatesHTML";
 import User from "../models/User";
 
@@ -93,14 +93,31 @@ export const createEvent = async (req, res) => {
 
 export const getAllEvents = async (req, res) => {
     try {
-        const events = await Event.find().sort({ createdAt: -1 });
-        
+        const { page = 1, limit = 10, search } = req.query;
+        const query: any = {};
+
+        if (search) {
+            query.$or = [
+                { title: { $regex: search, $options: "i" } },
+                { description: { $regex: search, $options: "i" } }
+            ];
+        }
+
+        const skip = (Number(page) - 1) * Number(limit);
+
+        const events = await Event.find(query)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(Number(limit));
+
+        const total = await Event.countDocuments(query);
+
         // Add capacity information to each event
         const eventsWithCapacity = events.map(event => {
             const eventObj = event.toObject();
             const currentCapacity = event.registeredUsers?.length || 0;
             const maxCapacity = event.settings?.maxCapacity;
-            
+
             return {
                 ...eventObj,
                 currentCapacity,
@@ -109,8 +126,17 @@ export const getAllEvents = async (req, res) => {
                 spotsRemaining: maxCapacity ? Math.max(0, maxCapacity - currentCapacity) : null
             };
         });
-        
-        res.status(200).json(eventsWithCapacity);
+
+        res.status(200).json({
+            count: eventsWithCapacity.length,
+            data: eventsWithCapacity,
+            pagination: {
+                total,
+                page: Number(page),
+                limit: Number(limit),
+                pages: Math.ceil(total / Number(limit))
+            }
+        });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }
@@ -126,7 +152,7 @@ export const getSingleEvent = async (req, res) => {
         const eventObj = event.toObject();
         const currentCapacity = event.registeredUsers?.length || 0;
         const maxCapacity = event.settings?.maxCapacity;
-        
+
         const eventWithCapacity = {
             ...eventObj,
             currentCapacity,
@@ -173,7 +199,7 @@ export const registerEventPayment = async (req, res) => {
         if (event.settings?.maxCapacity && event.settings.maxCapacity > 0) {
             const currentCapacity = event.registeredUsers.length;
             if (currentCapacity >= event.settings.maxCapacity) {
-                return res.status(400).json({ 
+                return res.status(400).json({
                     message: "Event is full. Maximum capacity reached.",
                     isFull: true,
                     maxCapacity: event.settings.maxCapacity,
@@ -187,26 +213,26 @@ export const registerEventPayment = async (req, res) => {
             event.registeredUsers.push(userObjectId);
             await event.save();
 
-                // Send free event registration confirmation email
-                try {
-                    const user = await User.findById(userId);
-                    if (user) {
-                        await sendEmail({
-                            to: user.email,
-                            subject: `Event Registration Confirmed - ${event.title}`,
-                            text: `Dear ${user.name},\n\nYour registration for "${event.title}" has been confirmed.\n\nDate: ${event.date.toLocaleDateString()}\nLocation: ${event.location}\n\nWe look forward to seeing you!\n\nBest regards,\nThe NAAPE Team`,
-                            html: eventRegistrationFreeEmailHTML(
-                                user.name,
-                                event.title,
-                                event.date,
-                                event.location,
-                                String(event._id)
-                            )
-                        });
-                    }
-                } catch (emailError) {
-                    console.error("Failed to send free event confirmation email:", emailError);
+            // Send free event registration confirmation email
+            try {
+                const user = await User.findById(userId);
+                if (user) {
+                    await sendEmail({
+                        to: user.email,
+                        subject: `Event Registration Confirmed - ${event.title}`,
+                        text: `Dear ${user.name},\n\nYour registration for "${event.title}" has been confirmed.\n\nDate: ${event.date.toLocaleDateString()}\nLocation: ${event.location}\n\nWe look forward to seeing you!\n\nBest regards,\nThe NAAPE Team`,
+                        html: eventRegistrationFreeEmailHTML(
+                            user.name,
+                            event.title,
+                            event.date,
+                            event.location,
+                            String(event._id)
+                        )
+                    });
                 }
+            } catch (emailError) {
+                console.error("Failed to send free event confirmation email:", emailError);
+            }
             return res.status(200).json({ message: "Registered for free event" });
         }
 
@@ -253,11 +279,11 @@ export const registerEventPayment = async (req, res) => {
 export const verifyEventPayment = async (req: Request, res: Response) => {
     try {
         const transaction_id = req.query.transaction_id as string;
-        
+
         if (!transaction_id || transaction_id.trim() === "") {
-            return res.status(400).json({ 
-                status: "failed", 
-                message: "Transaction ID is required for payment verification" 
+            return res.status(400).json({
+                status: "failed",
+                message: "Transaction ID is required for payment verification"
             });
         }
 
@@ -267,14 +293,14 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
             fwRes = await flw.get(`/transactions/${transaction_id}/verify`);
         } catch (flwError: any) {
             console.error("Flutterwave API error:", flwError.message);
-            
+
             if (flwError.code === 'ECONNREFUSED' || flwError.code === 'ETIMEDOUT' || flwError.code === 'ENOTFOUND') {
                 return res.status(500).json({
                     status: "failed",
                     message: "Payment verification service is temporarily unavailable. Please try again in a few moments."
                 });
             }
-            
+
             if (flwError.response?.status === 404) {
                 return res.status(404).json({
                     status: "failed",
@@ -282,17 +308,17 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
                     transactionId: transaction_id
                 });
             }
-            
+
             return res.status(500).json({
                 status: "failed",
                 message: "Unable to verify payment at this time. Please try again later or contact support."
             });
         }
-        
+
         const data = fwRes?.data?.data;
 
         if (!data || data.status !== "successful") {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 status: "failed",
                 message: "Payment was not successful",
                 transactionId: data?.id || transaction_id
@@ -301,8 +327,8 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
 
         const { eventId, userId } = data.meta || {};
         if (!eventId || !userId) {
-            return res.status(400).json({ 
-                status: "failed", 
+            return res.status(400).json({
+                status: "failed",
                 message: "Invalid payment metadata - user authentication required",
                 transactionId: data.id
             });
@@ -310,8 +336,8 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
 
         const event = await Event.findById(eventId);
         if (!event) {
-            return res.status(404).json({ 
-                status: "failed", 
+            return res.status(404).json({
+                status: "failed",
                 message: "Event not found",
                 transactionId: data.id
             });
@@ -321,16 +347,16 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
         const alreadyProcessed = event.payments.some(
             (p) => String(p.transactionId) === String(data.id)
         );
-        
+
         if (!alreadyProcessed) {
             const userObjectId = new Types.ObjectId(userId);
-            
+
             // Check capacity limit before finalizing registration
             if (event.settings?.maxCapacity && event.settings.maxCapacity > 0) {
                 const currentCapacity = event.registeredUsers.length;
                 if (currentCapacity >= event.settings.maxCapacity) {
                     // Event became full during payment process
-                    return res.status(400).json({ 
+                    return res.status(400).json({
                         status: "failed",
                         message: "Event became full while processing your payment. Please contact support for a refund.",
                         isFull: true,
@@ -338,7 +364,7 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
                     });
                 }
             }
-            
+
             // Add to registered users if not already there
             if (!event.registeredUsers.some((u) => u.equals(userObjectId))) {
                 event.registeredUsers.push(userObjectId);
@@ -420,7 +446,7 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
             console.error("Failed to send event confirmation email:", emailError);
         }
 
-        return res.json({ 
+        return res.json({
             status: "successful",
             message: "Payment verified successfully",
             transactionId: data.id,
@@ -435,7 +461,7 @@ export const verifyEventPayment = async (req: Request, res: Response) => {
 
     } catch (err) {
         console.error("Verify payment error:", err);
-        return res.status(500).json({ 
+        return res.status(500).json({
             status: "failed",
             message: "Payment verification failed"
         });
@@ -466,8 +492,8 @@ export const getEventPaymentStatus = async (req: Request, res: Response) => {
         );
 
         if (!payment) {
-            return res.status(200).json({ 
-                paid: false, 
+            return res.status(200).json({
+                paid: false,
                 registered: event.registeredUsers.some(u => u.equals(userObjectId))
             });
         }
@@ -501,7 +527,7 @@ export const getUserEvents = async (req: Request, res: Response) => {
 
         // Add payment info for each event
         const eventsWithPaymentInfo = events.map(event => {
-            const payment = event.payments.find(p => 
+            const payment = event.payments.find(p =>
                 p.user.equals(userObjectId) && p.status === "successful"
             );
 
@@ -530,7 +556,7 @@ export const getUserEvents = async (req: Request, res: Response) => {
 export const getEventAttendees = async (req: Request, res: Response) => {
     try {
         const { eventId } = req.params;
-        
+
         if (!eventId) {
             return res.status(400).json({ message: "Event ID is required" });
         }
@@ -546,9 +572,9 @@ export const getEventAttendees = async (req: Request, res: Response) => {
         // Build attendee data with payment and attendance information
         const attendees = event.registeredUsers.map((user: any) => {
             // Find payment for this user
-            const payment = event.payments.find(p => 
-                p.user._id ? p.user._id.toString() === user._id.toString() : 
-                p.user.toString() === user._id.toString()
+            const payment = event.payments.find(p =>
+                p.user._id ? p.user._id.toString() === user._id.toString() :
+                    p.user.toString() === user._id.toString()
             );
 
             return {
@@ -560,9 +586,9 @@ export const getEventAttendees = async (req: Request, res: Response) => {
                 specialization: user.profile?.specialization,
                 profilePicture: user.profile?.image?.url,
                 registrationDate: payment?.date || event.createdAt,
-                paymentStatus: payment ? 
-                    (payment.status === 'successful' ? 'successful' : 
-                     payment.status === 'pending' ? 'pending' : 'failed') :
+                paymentStatus: payment ?
+                    (payment.status === 'successful' ? 'successful' :
+                        payment.status === 'pending' ? 'pending' : 'failed') :
                     (event.isPaid ? 'failed' : 'free'),
                 paymentAmount: payment?.amount,
                 transactionId: payment?.transactionId,
@@ -598,15 +624,15 @@ export const updateAttendeeAttendance = async (req: Request, res: Response) => {
         const { attendanceStatus } = req.body;
 
         if (!eventId || !userId || !attendanceStatus) {
-            return res.status(400).json({ 
-                message: "Event ID, User ID, and attendance status are required" 
+            return res.status(400).json({
+                message: "Event ID, User ID, and attendance status are required"
             });
         }
 
         const validStatuses = ['registered', 'checked_in', 'attended', 'no_show'];
         if (!validStatuses.includes(attendanceStatus)) {
-            return res.status(400).json({ 
-                message: "Invalid attendance status" 
+            return res.status(400).json({
+                message: "Invalid attendance status"
             });
         }
 
@@ -617,17 +643,17 @@ export const updateAttendeeAttendance = async (req: Request, res: Response) => {
 
         const userObjectId = new Types.ObjectId(userId);
         const isRegistered = event.registeredUsers.some(u => u.equals(userObjectId));
-        
+
         if (!isRegistered) {
-            return res.status(404).json({ 
-                message: "User is not registered for this event" 
+            return res.status(404).json({
+                message: "User is not registered for this event"
             });
         }
 
         // For now, we'll store attendance status in a separate collection or extend the event model
         // Since the current model doesn't have attendance tracking, we'll return success
         // In a real implementation, you'd want to add an attendance field to the event model
-        
+
         return res.status(200).json({
             success: true,
             message: "Attendance status updated successfully",
@@ -644,7 +670,7 @@ export const updateAttendeeAttendance = async (req: Request, res: Response) => {
 export const exportEventAttendees = async (req: Request, res: Response) => {
     try {
         const { eventId } = req.params;
-        const { 
+        const {
             format = 'csv',
             paymentStatus,
             attendanceStatus,
@@ -665,14 +691,14 @@ export const exportEventAttendees = async (req: Request, res: Response) => {
 
         // Build attendee data for export
         let attendees = event.registeredUsers.map((user: any) => {
-            const payment = event.payments.find(p => 
-                p.user._id ? p.user._id.toString() === user._id.toString() : 
-                p.user.toString() === user._id.toString()
+            const payment = event.payments.find(p =>
+                p.user._id ? p.user._id.toString() === user._id.toString() :
+                    p.user.toString() === user._id.toString()
             );
 
-            const attendeePaymentStatus = payment ? 
-                (payment.status === 'successful' ? 'successful' : 
-                 payment.status === 'pending' ? 'pending' : 'failed') :
+            const attendeePaymentStatus = payment ?
+                (payment.status === 'successful' ? 'successful' :
+                    payment.status === 'pending' ? 'pending' : 'failed') :
                 (event.isPaid ? 'failed' : 'free');
 
             return {
@@ -692,20 +718,20 @@ export const exportEventAttendees = async (req: Request, res: Response) => {
 
         // Apply filters
         if (paymentStatus && paymentStatus !== 'all') {
-            attendees = attendees.filter(attendee => 
+            attendees = attendees.filter(attendee =>
                 attendee['Payment Status'].toLowerCase() === (paymentStatus as string).toLowerCase()
             );
         }
 
         if (attendanceStatus && attendanceStatus !== 'all') {
-            attendees = attendees.filter(attendee => 
+            attendees = attendees.filter(attendee =>
                 attendee['Attendance Status'].toLowerCase().replace(' ', '_') === (attendanceStatus as string).toLowerCase()
             );
         }
 
         if (search) {
             const searchTerm = (search as string).toLowerCase();
-            attendees = attendees.filter(attendee => 
+            attendees = attendees.filter(attendee =>
                 attendee.Name.toLowerCase().includes(searchTerm) ||
                 attendee.Email.toLowerCase().includes(searchTerm) ||
                 attendee.Organization.toLowerCase().includes(searchTerm) ||
@@ -718,7 +744,7 @@ export const exportEventAttendees = async (req: Request, res: Response) => {
             const headers = ['Name', 'Email', 'Phone', 'Organization', 'Specialization', 'Registration Date', 'Payment Status', 'Payment Amount', 'Transaction ID', 'Attendance Status'];
             const csvContent = [
                 headers.join(','),
-                ...attendees.map(attendee => 
+                ...attendees.map(attendee =>
                     headers.map(header => `"${attendee[header] || ''}"`).join(',')
                 )
             ].join('\n');
@@ -797,8 +823,8 @@ export const deleteEvent = async (req: Request, res: Response) => {
 
         // Check if event has registered users or payments
         if (event.registeredUsers.length > 0 || event.payments.length > 0) {
-            return res.status(400).json({ 
-                message: "Cannot delete event with registered users or payments. Consider cancelling instead." 
+            return res.status(400).json({
+                message: "Cannot delete event with registered users or payments. Consider cancelling instead."
             });
         }
 
@@ -897,9 +923,9 @@ export const updateEventSettings = async (req: Request, res: Response) => {
 
         const event = await Event.findByIdAndUpdate(
             eventId,
-            { 
+            {
                 settings: { ...settings },
-                updatedAt: new Date() 
+                updatedAt: new Date()
             },
             { new: true, runValidators: true }
         );
@@ -923,7 +949,7 @@ export const updateEventSettings = async (req: Request, res: Response) => {
 // Admin-only: Get events with admin details
 export const getAdminEvents = async (req: Request, res: Response) => {
     try {
-        const { 
+        const {
             status,
             search,
             sortBy = 'createdAt',
@@ -933,7 +959,7 @@ export const getAdminEvents = async (req: Request, res: Response) => {
         } = req.query;
 
         const query: any = {};
-        
+
         // Filter by status if provided
         if (status && status !== 'all') {
             query.status = status;
