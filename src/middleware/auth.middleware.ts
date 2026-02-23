@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import User from "../models/User";
+import { Subscription } from "../models/Subscription";
 
 interface DecodedToken {
     id: string;
@@ -33,14 +34,18 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
         //Decode token
         const decoded = jwt.verify(token, process.env.JWT_SECRET || "") as DecodedToken;
 
-        //Find user and attach to request
+        //Find user and attach to request (with subscription populated)
         const user = await User.findById(decoded.id).select("-password");
         if (!user) {
             return res.status(401).json({ message: "User not found" });
         }
 
-        //Attach user to request (the missing piece!)
+        // Fetch user's subscription separately
+        const subscription = await Subscription.findOne({ userId: user._id, isActive: true });
+
+        //Attach user and subscription to request
         (req as any).user = user;
+        (req as any).user.subscription = subscription;
 
         //Proceed to next handler
         next();
@@ -71,8 +76,13 @@ export const optionalProtect = async (
             console.log("User found:", user?._id);
 
             if (user) {
+                // Fetch user's subscription separately
+                const subscription = await Subscription.findOne({ userId: user._id, isActive: true });
+                console.log("User subscription:", subscription);
+
                 (req as any).user = user;
-                console.log("User attached to request");
+                (req as any).user.subscription = subscription;
+                console.log("User attached to request with subscription");
             }
         } else {
             console.log("No auth header or invalid format");
