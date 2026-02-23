@@ -23,6 +23,7 @@ import generalCommunicationsRoutes from "./routes/v1/general.communications.rout
 import adminPublicationRoutes from "./routes/v1/admin.publication.routes"
 import adminNewsRoutes from "./routes/v1/admin.news.routes"
 import contactRoutes from "./routes/v1/contact.routes"
+import galleryRoutes from "./routes/gallery.routes"
 
 
 // === Rate Limiting Middleware Setup ===
@@ -138,6 +139,9 @@ app.use("/api/v1/admin/news", adminNewsRoutes);
 
 //contact route
 app.use("/api/v1/contact", contactRoutes);
+
+//gallery config
+app.use("/api/v1/gallery", galleryRoutes);
 
 //listen to port
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));

@@ -159,7 +159,7 @@ export const getForumActivity = async (req: Request, res: Response) => {
                 timestamp: report.createdAt
             }))
         ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-         .slice(skip, skip + limit);
+            .slice(skip, skip + limit);
 
         const total = recentThreads.length + recentReplies.length + recentReports.length;
 
@@ -184,7 +184,7 @@ export const getForumActivity = async (req: Request, res: Response) => {
 export const getAllCategories = async (req: Request, res: Response) => {
     try {
         const categories = await ForumCategory.find().sort({ order: 1 });
-        
+
         // Get thread count for each category
         const categoriesWithCounts = await Promise.all(
             categories.map(async (category) => {
@@ -207,7 +207,7 @@ export const getAllCategories = async (req: Request, res: Response) => {
                         $count: "total"
                     }
                 ]);
-                
+
                 return {
                     ...category.toObject(),
                     threadCount,
@@ -231,16 +231,16 @@ export const createCategoryAdmin = async (req: Request, res: Response) => {
         const { name, description, slug, icon, order } = req.body;
 
         if (!name || !description || !slug) {
-            return res.status(400).json({ 
-                message: "Name, description, and slug are required" 
+            return res.status(400).json({
+                message: "Name, description, and slug are required"
             });
         }
 
         // Check if slug already exists
         const existingCategory = await ForumCategory.findOne({ slug });
         if (existingCategory) {
-            return res.status(409).json({ 
-                message: "Category with this slug already exists" 
+            return res.status(409).json({
+                message: "Category with this slug already exists"
             });
         }
 
@@ -282,13 +282,13 @@ export const updateCategory = async (req: Request, res: Response) => {
 
         // Check if slug is being changed and if it conflicts
         if (slug && slug !== category.slug) {
-            const existingCategory = await ForumCategory.findOne({ 
-                slug, 
-                _id: { $ne: categoryId } 
+            const existingCategory = await ForumCategory.findOne({
+                slug,
+                _id: { $ne: categoryId }
             });
             if (existingCategory) {
-                return res.status(409).json({ 
-                    message: "Category with this slug already exists" 
+                return res.status(409).json({
+                    message: "Category with this slug already exists"
                 });
             }
         }
@@ -325,27 +325,27 @@ export const deleteCategory = async (req: Request, res: Response) => {
 
         // Check if there are threads in this category
         const threadCount = await ForumThread.countDocuments({ category: categoryId });
-        
+
         if (threadCount > 0) {
             if (deleteThreads) {
                 // Delete all threads and their replies
                 const threads = await ForumThread.find({ category: categoryId });
                 const threadIds = threads.map(thread => thread._id);
-                
+
                 // Delete all replies for these threads
                 await ForumReply.deleteMany({ thread: { $in: threadIds } });
-                
+
                 // Delete all threads
                 await ForumThread.deleteMany({ category: categoryId });
             } else if (migrateTo) {
                 // Validate migration target
                 const targetCategory = await ForumCategory.findById(migrateTo);
                 if (!targetCategory) {
-                    return res.status(400).json({ 
-                        message: "Migration target category not found" 
+                    return res.status(400).json({
+                        message: "Migration target category not found"
                     });
                 }
-                
+
                 // Migrate threads to target category
                 await ForumThread.updateMany(
                     { category: categoryId },
@@ -468,7 +468,7 @@ export const getAllThreadsAdmin = async (req: Request, res: Response) => {
                 const lastReply = await ForumReply.findOne({ thread: thread._id })
                     .sort({ createdAt: -1 })
                     .populate("author", "name");
-                
+
                 return {
                     ...thread.toObject(),
                     replyCount,
@@ -509,7 +509,7 @@ export const pinThread = async (req: Request, res: Response) => {
         thread.moderatedBy = adminId;
         thread.moderatedAt = new Date();
         thread.moderationNotes = `Thread ${thread.isPinned ? 'pinned' : 'unpinned'} by admin`;
-        
+
         await thread.save();
 
         const updatedThread = await ForumThread.findById(threadId)
@@ -541,7 +541,7 @@ export const lockThread = async (req: Request, res: Response) => {
         thread.moderatedBy = adminId;
         thread.moderatedAt = new Date();
         thread.moderationNotes = `Thread ${thread.isLocked ? 'locked' : 'unlocked'} by admin`;
-        
+
         await thread.save();
 
         const updatedThread = await ForumThread.findById(threadId)
@@ -583,12 +583,12 @@ export const moveThread = async (req: Request, res: Response) => {
         }
 
         const oldCategory = await ForumCategory.findById(thread.category);
-        
+
         thread.category = categoryId;
         thread.moderatedBy = adminId;
         thread.moderatedAt = new Date();
         thread.moderationNotes = reason || `Thread moved from ${oldCategory?.name} to ${targetCategory.name}`;
-        
+
         await thread.save();
 
         const updatedThread = await ForumThread.findById(threadId)
@@ -618,10 +618,10 @@ export const deleteThreadAdmin = async (req: Request, res: Response) => {
 
         // Delete all replies first
         await ForumReply.deleteMany({ thread: threadId });
-        
+
         // Delete thread approvals if any
         await ThreadApproval.deleteMany({ thread: threadId });
-        
+
         // Delete the thread
         await ForumThread.findByIdAndDelete(threadId);
 
@@ -650,8 +650,8 @@ export const bulkThreadActions = async (req: Request, res: Response) => {
 
         const validActions = ['pin', 'unpin', 'lock', 'unlock', 'delete', 'move', 'approve', 'reject'];
         if (!validActions.includes(action)) {
-            return res.status(400).json({ 
-                message: `Invalid action. Valid actions: ${validActions.join(', ')}` 
+            return res.status(400).json({
+                message: `Invalid action. Valid actions: ${validActions.join(', ')}`
             });
         }
 
@@ -703,7 +703,7 @@ export const bulkThreadActions = async (req: Request, res: Response) => {
                 await ForumReply.deleteMany({ thread: { $in: threadIds } });
                 await ThreadApproval.deleteMany({ thread: { $in: threadIds } });
                 await ForumThread.deleteMany({ _id: { $in: threadIds } });
-                
+
                 return res.status(200).json({
                     message: `${threadIds.length} threads and their replies deleted successfully`
                 });
@@ -737,11 +737,11 @@ export const getPendingApprovals = async (req: Request, res: Response) => {
             requiresApproval: true,
             isApproved: false
         })
-        .populate("author", "name email role")
-        .populate("category", "name slug")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit);
+            .populate("author", "name email role")
+            .populate("category", "name slug")
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
 
         const total = await ForumThread.countDocuments({
             requiresApproval: true,
@@ -780,7 +780,7 @@ export const approveThread = async (req: Request, res: Response) => {
         thread.moderatedBy = adminId;
         thread.moderatedAt = new Date();
         thread.moderationNotes = reviewNotes || 'Thread approved by admin';
-        
+
         await thread.save();
 
         // Create or update thread approval record
@@ -827,7 +827,7 @@ export const rejectThread = async (req: Request, res: Response) => {
         thread.moderatedBy = adminId;
         thread.moderatedAt = new Date();
         thread.moderationNotes = reviewNotes || 'Thread rejected by admin';
-        
+
         await thread.save();
 
         // Create or update thread approval record
@@ -895,8 +895,8 @@ export const getForumUsers = async (req: Request, res: Response) => {
                 const [threadCount, replyCount, activeBan] = await Promise.all([
                     ForumThread.countDocuments({ author: user._id }),
                     ForumReply.countDocuments({ author: user._id }),
-                    UserForumBan.findOne({ 
-                        user: user._id, 
+                    UserForumBan.findOne({
+                        user: user._id,
                         isActive: true,
                         $or: [
                             { expiresAt: { $exists: false } }, // Permanent ban
@@ -964,7 +964,7 @@ export const getForumUserMetrics = async (req: Request, res: Response) => {
         const totalUsers = await User.countDocuments();
 
         // Get active bans count
-        const activeBans = await UserForumBan.countDocuments({ 
+        const activeBans = await UserForumBan.countDocuments({
             isActive: true,
             $or: [
                 { expiresAt: { $exists: false } }, // Permanent ban
@@ -1031,21 +1031,21 @@ export const banUser = async (req: Request, res: Response) => {
         const adminId = (req as any).user.id;
 
         if (!banType || !reason) {
-            return res.status(400).json({ 
-                message: "Ban type and reason are required" 
+            return res.status(400).json({
+                message: "Ban type and reason are required"
             });
         }
 
         const validBanTypes = ['permanent', 'temporary', 'mute'];
         if (!validBanTypes.includes(banType)) {
-            return res.status(400).json({ 
-                message: `Invalid ban type. Valid types: ${validBanTypes.join(', ')}` 
+            return res.status(400).json({
+                message: `Invalid ban type. Valid types: ${validBanTypes.join(', ')}`
             });
         }
 
         if (banType === 'temporary' && !duration) {
-            return res.status(400).json({ 
-                message: "Duration (in days) is required for temporary bans" 
+            return res.status(400).json({
+                message: "Duration (in days) is required for temporary bans"
             });
         }
 
@@ -1059,14 +1059,14 @@ export const banUser = async (req: Request, res: Response) => {
         }
 
         // Check if user already has an active ban
-        const existingBan = await UserForumBan.findOne({ 
-            user: userId, 
-            isActive: true 
+        const existingBan = await UserForumBan.findOne({
+            user: userId,
+            isActive: true
         });
 
         if (existingBan) {
-            return res.status(409).json({ 
-                message: "User already has an active ban/restriction" 
+            return res.status(409).json({
+                message: "User already has an active ban/restriction"
             });
         }
 
@@ -1113,14 +1113,14 @@ export const unbanUser = async (req: Request, res: Response) => {
         }
 
         // Find and deactivate active ban
-        const activeBan = await UserForumBan.findOne({ 
-            user: userId, 
-            isActive: true 
+        const activeBan = await UserForumBan.findOne({
+            user: userId,
+            isActive: true
         });
 
         if (!activeBan) {
-            return res.status(404).json({ 
-                message: "No active ban found for this user" 
+            return res.status(404).json({
+                message: "No active ban found for this user"
             });
         }
 
@@ -1176,8 +1176,8 @@ export const getUserForumActivity = async (req: Request, res: Response) => {
             .sort({ createdAt: -1 });
 
         // Get current ban status
-        const currentBan = await UserForumBan.findOne({ 
-            user: userId, 
+        const currentBan = await UserForumBan.findOne({
+            user: userId,
             isActive: true,
             $or: [
                 { expiresAt: { $exists: false } },
@@ -1270,7 +1270,7 @@ export const getAllReports = async (req: Request, res: Response) => {
                             .populate("author", "name email");
                     }
                 }
-                
+
                 return {
                     ...report.toObject(),
                     reportedContent: populatedContent
@@ -1402,8 +1402,8 @@ export const resolveReport = async (req: Request, res: Response) => {
         }
 
         if (report.status !== 'pending') {
-            return res.status(400).json({ 
-                message: "Only pending reports can be resolved" 
+            return res.status(400).json({
+                message: "Only pending reports can be resolved"
             });
         }
 
@@ -1412,7 +1412,7 @@ export const resolveReport = async (req: Request, res: Response) => {
         report.resolvedBy = adminId;
         report.resolvedAt = new Date();
         report.resolutionNotes = resolutionNotes || 'Resolved by admin';
-        
+
         await report.save();
 
         // Perform additional actions based on actionTaken
@@ -1441,7 +1441,7 @@ export const resolveReport = async (req: Request, res: Response) => {
                     if (report.reportedUser) {
                         const expiresAt = new Date();
                         expiresAt.setDate(expiresAt.getDate() + 7); // 7 day suspension
-                        
+
                         await UserForumBan.create({
                             user: report.reportedUser,
                             banType: 'temporary',
@@ -1485,7 +1485,7 @@ export const resolveReport = async (req: Request, res: Response) => {
                     actionMessage = "Your account has been temporarily suspended from the forum for 7 days due to a community report.";
                     break;
             }
-            
+
             if (actionMessage) {
                 await createNotification(
                     report.reportedUser.toString(),
@@ -1519,8 +1519,8 @@ export const dismissReport = async (req: Request, res: Response) => {
         }
 
         if (report.status !== 'pending') {
-            return res.status(400).json({ 
-                message: "Only pending reports can be dismissed" 
+            return res.status(400).json({
+                message: "Only pending reports can be dismissed"
             });
         }
 
@@ -1529,7 +1529,7 @@ export const dismissReport = async (req: Request, res: Response) => {
         report.resolvedBy = adminId;
         report.resolvedAt = new Date();
         report.resolutionNotes = resolutionNotes || 'Dismissed by admin';
-        
+
         await report.save();
 
         const updatedReport = await ForumReport.findById(reportId)
@@ -1572,8 +1572,8 @@ export const bulkReportActions = async (req: Request, res: Response) => {
 
         const validActions = ['resolve', 'dismiss'];
         if (!validActions.includes(action)) {
-            return res.status(400).json({ 
-                message: `Invalid action. Valid actions: ${validActions.join(', ')}` 
+            return res.status(400).json({
+                message: `Invalid action. Valid actions: ${validActions.join(', ')}`
             });
         }
 
@@ -1585,7 +1585,7 @@ export const bulkReportActions = async (req: Request, res: Response) => {
         };
 
         const result = await ForumReport.updateMany(
-            { 
+            {
                 _id: { $in: reportIds },
                 status: 'pending' // Only update pending reports
             },
@@ -1669,7 +1669,26 @@ export const getForumAnalyticsOverview = async (req: Request, res: Response) => 
                 }
             },
             {
-                $sort: { "_id.year": 1, "_id.month": 1, "_id.day": 1 }
+                $addFields: {
+                    date: {
+                        $dateFromParts: {
+                            year: "$_id.year",
+                            month: "$_id.month",
+                            day: "$_id.day"
+                        }
+                    }
+                }
+            },
+            {
+                $sort: { date: 1 }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    date: 1,
+                    threadCount: 1,
+                    totalViews: 1
+                }
             }
         ]);
 
@@ -1892,7 +1911,7 @@ export const getForumActivityMetrics = async (req: Request, res: Response) => {
 
         // Merge thread and reply activity by date
         const activityMap = new Map();
-        
+
         dailyActivity.forEach(day => {
             const dateKey = day.date.toISOString().split('T')[0];
             activityMap.set(dateKey, {
@@ -1915,13 +1934,13 @@ export const getForumActivityMetrics = async (req: Request, res: Response) => {
                 replyCount: 0,
                 uniqueReplierCount: 0
             };
-            
+
             existing.replyCount = day.replyCount;
             existing.uniqueReplierCount = day.uniqueReplierCount;
             activityMap.set(dateKey, existing);
         });
 
-        const combinedActivity = Array.from(activityMap.values()).sort((a, b) => 
+        const combinedActivity = Array.from(activityMap.values()).sort((a, b) =>
             new Date(a.date).getTime() - new Date(b.date).getTime()
         );
 
@@ -2076,8 +2095,8 @@ export const exportForumAnalytics = async (req: Request, res: Response) => {
         const categoryId = req.query.categoryId as string;
 
         if (!['json', 'csv'].includes(format)) {
-            return res.status(400).json({ 
-                message: "Invalid format. Supported formats: json, csv" 
+            return res.status(400).json({
+                message: "Invalid format. Supported formats: json, csv"
             });
         }
 
@@ -2175,7 +2194,7 @@ export const exportForumAnalytics = async (req: Request, res: Response) => {
         } else if (format === 'csv') {
             // Simple CSV export of threads data
             const csvHeaders = 'ID,Title,Author,Category,Created,Views,Pinned,Locked\n';
-            const csvData = threads.map(thread => 
+            const csvData = threads.map(thread =>
                 `"${thread._id}","${thread.title}","${(thread.author as any)?.name}","${(thread.category as any)?.name}","${thread.createdAt}","${thread.views}","${thread.isPinned}","${thread.isLocked}"`
             ).join('\n');
 
@@ -2331,8 +2350,8 @@ export const bulkReplyActions = async (req: Request, res: Response) => {
 
         const validActions = ['delete', 'edit'];
         if (!validActions.includes(action)) {
-            return res.status(400).json({ 
-                message: `Invalid action. Valid actions: ${validActions.join(', ')}` 
+            return res.status(400).json({
+                message: `Invalid action. Valid actions: ${validActions.join(', ')}`
             });
         }
 
@@ -2346,7 +2365,7 @@ export const bulkReplyActions = async (req: Request, res: Response) => {
                 if (!data?.content) {
                     return res.status(400).json({ message: "Content required for edit action" });
                 }
-                
+
                 const updateQuery = {
                     content: data.content,
                     isEdited: true,

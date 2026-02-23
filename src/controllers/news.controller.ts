@@ -95,7 +95,11 @@ export const getSingleNews = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
 
-        const news = await News.findById(id).populate("author", "name email");
+        const news = await News.findByIdAndUpdate(
+            id,
+            { $inc: { views: 1 } },
+            { new: true }
+        ).populate("author", "name email");
         if (!news) return res.status(404).json({ message: "News not found" });
 
         res.status(200).json(news);
