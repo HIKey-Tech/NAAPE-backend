@@ -386,15 +386,6 @@ export const getSinglePublication = async (req: Request, res: Response) => {
         const hasSubscription = userId && (req as any).user?.subscription?.status === "active";
         const canViewFullContent = isAuthor || isAdmin || hasSubscription;
 
-        // DEBUG LOGGING
-        console.log("=== PUBLICATION ACCESS DEBUG ===");
-        console.log("userId:", userId);
-        console.log("user subscription:", (req as any).user?.subscription);
-        console.log("hasSubscription:", hasSubscription);
-        console.log("isAuthor:", isAuthor);
-        console.log("isAdmin:", isAdmin);
-        console.log("canViewFullContent:", canViewFullContent);
-
         // Prepare response data with proper typing
         const publicationObj = publication.toObject();
         let responseData: any = { ...publicationObj };
