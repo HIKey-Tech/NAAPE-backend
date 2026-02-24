@@ -246,11 +246,12 @@ export const registerEventPayment = async (req, res) => {
 
         // Paid events: create payment link
         const tx_ref = `EVT-${eventId}-${Date.now()}`;
+        const redirectUrl = req.body.redirect_url || `${process.env.FRONTEND_URL}/events/${eventId}/payment-complete`;
         const payload = {
             tx_ref,
             amount: event.price,
             currency: event.currency,
-            redirect_url: `${process.env.FRONTEND_URL}/events/${eventId}/payment-complete`,
+            redirect_url: redirectUrl,
             customer: {
                 email,
                 name

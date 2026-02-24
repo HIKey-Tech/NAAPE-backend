@@ -127,7 +127,7 @@ export const initializeSubscriptionPayment = async (req: Request, res: Response)
         console.log("🔍 Looking for plan with name:", tier);
         const plan = await Plan.findOne({ name: tier, isActive: true });
         console.log("Plan found:", plan ? { id: plan._id, name: plan.name, price: plan.price } : "No plan found");
-        
+
         if (!plan) {
             console.log("❌ Plan not found for tier:", tier);
             return res.status(404).json({ error: "Subscription plan not found" });
@@ -198,12 +198,12 @@ export const initializeSubscriptionPayment = async (req: Request, res: Response)
 
         // Handle premium tier - payment required
         console.log("💳 Processing premium tier subscription");
-        const redirectUrl = process.env.FLW_REDIRECT_URL || "https://www.naape.ng/subscription/callback";
+        const redirectUrl = req.body.redirect_url || process.env.FLW_REDIRECT_URL || "https://www.naape.ng/subscription/callback";
         console.log("Redirect URL:", redirectUrl);
-        
+
         if (!redirectUrl) {
-            console.log("❌ FLW_REDIRECT_URL not set");
-            return res.status(500).json({ error: "FLW_REDIRECT_URL not set" });
+            console.log("❌ Redirect URL not set");
+            return res.status(500).json({ error: "Redirect URL not set" });
         }
 
         const txRef = `sub_${user._id}_${Date.now()}`;
@@ -246,14 +246,14 @@ export const initializeSubscriptionPayment = async (req: Request, res: Response)
         console.error("Error name:", err.name);
         console.error("Error message:", err.message);
         console.error("Error stack:", err.stack);
-        
+
         if (err.response) {
             console.error("Error response status:", err.response.status);
             console.error("Error response data:", JSON.stringify(err.response.data, null, 2));
         }
-        
-        return res.status(500).json({ 
-            error: "Payment initialization failed", 
+
+        return res.status(500).json({
+            error: "Payment initialization failed",
             details: err.message,
             ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
         });
@@ -370,16 +370,16 @@ export const verifySubscriptionPayment = async (req: Request, res: Response) => 
         const user = req.user;
 
         if (!transaction_id) {
-            return res.status(400).json({ 
-                status: "failed", 
-                message: "Missing transaction_id" 
+            return res.status(400).json({
+                status: "failed",
+                message: "Missing transaction_id"
             });
         }
 
         if (!user) {
-            return res.status(401).json({ 
-                status: "failed", 
-                message: "Unauthorized" 
+            return res.status(401).json({
+                status: "failed",
+                message: "Unauthorized"
             });
         }
 
@@ -388,22 +388,22 @@ export const verifySubscriptionPayment = async (req: Request, res: Response) => 
         const data = fwRes?.data?.data;
 
         if (!data || data.status !== "successful") {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 status: "failed",
-                message: "Payment verification failed" 
+                message: "Payment verification failed"
             });
         }
 
         // Extract tx_ref to get user and tier info
         const txRef = data.tx_ref;
-        
+
         // Check if subscription already exists for this transaction
-        const existingHistory = await PaymentHistory.findOne({ 
-            transactionId: data.id 
+        const existingHistory = await PaymentHistory.findOne({
+            transactionId: data.id
         });
-        
+
         if (existingHistory) {
-            return res.json({ 
+            return res.json({
                 status: "successful",
                 message: "Payment already processed",
                 alreadyProcessed: true
@@ -411,15 +411,15 @@ export const verifySubscriptionPayment = async (req: Request, res: Response) => 
         }
 
         // Find the plan based on the amount paid
-        const plan = await Plan.findOne({ 
+        const plan = await Plan.findOne({
             price: data.amount,
-            isActive: true 
+            isActive: true
         });
 
         if (!plan) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 status: "failed",
-                message: "Plan not found for this payment amount" 
+                message: "Plan not found for this payment amount"
             });
         }
 
@@ -450,7 +450,7 @@ export const verifySubscriptionPayment = async (req: Request, res: Response) => 
             subscription.endDate = endDate;
             subscription.status = "active";
             subscription.isActive = true;
-            
+
             await subscription.save();
         } else {
             // Create new subscription
@@ -522,7 +522,7 @@ export const verifySubscriptionPayment = async (req: Request, res: Response) => 
             // Don't fail the request if email fails
         }
 
-        return res.json({ 
+        return res.json({
             status: "successful",
             message: "Subscription activated successfully",
             subscription: {
@@ -534,10 +534,10 @@ export const verifySubscriptionPayment = async (req: Request, res: Response) => 
 
     } catch (err: any) {
         console.error("Verify subscription payment error:", err);
-        return res.status(500).json({ 
+        return res.status(500).json({
             status: "failed",
             message: "Payment verification failed",
-            error: err.message 
+            error: err.message
         });
     }
 };
@@ -549,19 +549,19 @@ export const verifySubscriptionPayment = async (req: Request, res: Response) => 
 export const debugSubscription = async (req: Request, res: Response) => {
     try {
         console.log("=== SUBSCRIPTION DEBUG ===");
-        
+
         // Check if user is authenticated
         const user = req.user;
         console.log("User:", user ? { id: user._id, email: user.email, name: user.name } : "No user");
-        
+
         // Check if plans exist
         const plans = await Plan.find({});
         console.log("All plans in database:", plans);
-        
+
         // Check active plans
         const activePlans = await Plan.find({ isActive: true });
         console.log("Active plans:", activePlans);
-        
+
         // Check environment variables
         const envVars = {
             FLW_REDIRECT_URL: process.env.FLW_REDIRECT_URL,
@@ -569,7 +569,7 @@ export const debugSubscription = async (req: Request, res: Response) => {
             FLW_PUBLIC_KEY: process.env.FLW_PUBLIC_KEY ? "SET" : "NOT SET",
         };
         console.log("Environment variables:", envVars);
-        
+
         return res.json({
             success: true,
             user: user ? { id: user._id, email: user.email, name: user.name } : null,
@@ -577,7 +577,7 @@ export const debugSubscription = async (req: Request, res: Response) => {
             activePlans: activePlans,
             envVars: envVars
         });
-        
+
     } catch (error: any) {
         console.error("Debug error:", error);
         return res.status(500).json({ error: error.message });
@@ -591,7 +591,7 @@ export const debugSubscription = async (req: Request, res: Response) => {
 export const getSubscriptionStatus = async (req: Request, res: Response) => {
     try {
         const user = req.user;
-        
+
         if (!user) {
             return res.status(401).json({ error: "Unauthorized" });
         }
@@ -614,7 +614,7 @@ export const getSubscriptionStatus = async (req: Request, res: Response) => {
         if (subscription.endDate && new Date() > subscription.endDate) {
             subscription.status = "cancelled";
             await subscription.save();
-            
+
             return res.json({
                 hasSubscription: false,
                 status: "expired",
@@ -636,8 +636,8 @@ export const getSubscriptionStatus = async (req: Request, res: Response) => {
 
     } catch (err: any) {
         console.error("Get subscription status error:", err);
-        return res.status(500).json({ 
-            error: "Failed to fetch subscription status" 
+        return res.status(500).json({
+            error: "Failed to fetch subscription status"
         });
     }
 };
