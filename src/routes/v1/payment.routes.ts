@@ -2,7 +2,7 @@
 import { Router } from "express";
 
 import { createPayment } from "../../controllers/payment.controller";
-import { createPlan,  initializeSubscriptionPayment, verifySubscriptionPayment, getSubscriptionStatus, debugSubscription } from "../../controllers/subscription.controller";
+import { createPlan, initializeSubscriptionPayment, verifySubscriptionPayment, getSubscriptionStatus, debugSubscription } from "../../controllers/subscription.controller";
 import { chargeAndTokenize, createTokenizedCharge } from "../../controllers/token.controller";
 import { createRecipient, createTransfer } from "../../controllers/transfer.controller";
 import { handleWebhook } from "../../controllers/webhook";
@@ -17,7 +17,7 @@ const router = Router();
 router.post("/create-link", createPayment);
 
 // Payment plans & subscriptions
-router.post("/plans",  createPlan);
+router.post("/plans", createPlan);
 // router.post("/subscription", protect, createSubscription);
 router.post(
     "/subscription/initialize-payment",
