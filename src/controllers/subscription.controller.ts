@@ -198,7 +198,22 @@ export const initializeSubscriptionPayment = async (req: Request, res: Response)
 
         // Handle premium tier - payment required
         console.log("💳 Processing premium tier subscription");
-        const redirectUrl = req.body.redirect_url || process.env.FLW_REDIRECT_URL || "https://www.naape.ng/subscription/callback";
+
+        let redirectUrl = req.body.redirect_url;
+        const defaultRedirectUrl = process.env.FLW_REDIRECT_URL || "https://www.naape.ng/subscription/callback";
+        const allowedBaseUrls = [process.env.FRONTEND_URL || "https://www.naape.ng", "https://naape.ng"];
+
+        if (redirectUrl) {
+            // Validate redirectUrl to prevent open redirects
+            const isAllowed = allowedBaseUrls.some(baseUrl => redirectUrl?.startsWith(baseUrl));
+            if (!isAllowed) {
+                console.log("❌ Blocked invalid redirect URL:", redirectUrl);
+                redirectUrl = defaultRedirectUrl;
+            }
+        } else {
+            redirectUrl = defaultRedirectUrl;
+        }
+
         console.log("Redirect URL:", redirectUrl);
 
         if (!redirectUrl) {

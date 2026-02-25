@@ -246,7 +246,22 @@ export const registerEventPayment = async (req, res) => {
 
         // Paid events: create payment link
         const tx_ref = `EVT-${eventId}-${Date.now()}`;
-        const redirectUrl = req.body.redirect_url || `${process.env.FRONTEND_URL}/events/${eventId}/payment-complete`;
+
+        let redirectUrl = req.body.redirect_url;
+        const defaultRedirectUrl = `${process.env.FRONTEND_URL}/events/${eventId}/payment-complete`;
+        const allowedBaseUrls = [process.env.FRONTEND_URL || "https://www.naape.ng", "https://naape.ng"];
+
+        if (redirectUrl) {
+            // Validate redirectUrl to prevent open redirects
+            const isAllowed = allowedBaseUrls.some(baseUrl => redirectUrl?.startsWith(baseUrl));
+            if (!isAllowed) {
+                console.log("❌ Blocked invalid event redirect URL:", redirectUrl);
+                redirectUrl = defaultRedirectUrl;
+            }
+        } else {
+            redirectUrl = defaultRedirectUrl;
+        }
+
         const payload = {
             tx_ref,
             amount: event.price,
