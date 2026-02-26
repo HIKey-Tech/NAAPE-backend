@@ -12,13 +12,21 @@ import { Types } from "mongoose";
 
 export const handleWebhook = async (req: Request, res: Response) => {
     try {
+        console.log("=== WEBHOOK RECEIVED ===");
+        console.log("Headers:", JSON.stringify(req.headers));
+        console.log("Body:", JSON.stringify(req.body));
+
         const signature = (req.headers["verif-hash"] || req.headers["verify-hash"]) as string | undefined;
+        console.log("Extracted Signature:", signature);
+        console.log("Expected Signature:", process.env.FLW_HASH);
 
         if (!signature || signature !== process.env.FLW_HASH) {
+            console.error("Webhook signature mismatch or missing");
             return res.status(401).send("unauthorised");
         }
 
         const event = req.body;
+        console.log("Webhook Event Type:", event.event);
 
         /**
          * SUBSCRIPTION PAYMENT COMPLETED
@@ -79,9 +87,12 @@ export const handleWebhook = async (req: Request, res: Response) => {
             const txRef = data.tx_ref || "";
             const meta = data.meta || {};
 
+            console.log("Processing successful charge:", { txRef, meta, id: data.id });
+
             // Check if this payment is already processed
             const existingHistory = await PaymentHistory.findOne({ transactionId: data.id });
             if (existingHistory) {
+                console.log("Payment already processed:", data.id);
                 return res.json({ status: "already processed" });
             }
 
@@ -156,13 +167,18 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
             // IS IT AN EVENT?
             if (txRef.startsWith("EVT-") || meta.eventId) {
+                console.log("Identified as EVENT payment");
                 const eventId = meta.eventId;
                 const userId = meta.userId;
 
                 const ev = await Event.findById(eventId);
                 const user = await User.findById(userId);
 
+                if (!ev) console.error("Event not found for webhook:", eventId);
+                if (!user) console.error("User not found for webhook:", userId);
+
                 if (ev && user) {
+                    console.log(`Processing event payment for user ${user.email} and event ${ev.title}`);
                     const userObjectId = new Types.ObjectId(userId);
 
                     if (!ev.registeredUsers.some((u) => u.equals(userObjectId))) {
