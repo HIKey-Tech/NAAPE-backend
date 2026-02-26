@@ -382,19 +382,11 @@ export async function getAllPlans(req: Request, res: Response) {
 export const verifySubscriptionPayment = async (req: Request, res: Response) => {
     try {
         const transaction_id = req.query.transaction_id as string;
-        const user = req.user;
 
         if (!transaction_id) {
             return res.status(400).json({
                 status: "failed",
                 message: "Missing transaction_id"
-            });
-        }
-
-        if (!user) {
-            return res.status(401).json({
-                status: "failed",
-                message: "Unauthorized"
             });
         }
 
@@ -409,8 +401,25 @@ export const verifySubscriptionPayment = async (req: Request, res: Response) => 
             });
         }
 
-        // Extract tx_ref to get user and tier info
+        // Extract tx_ref and meta to get user and tier info
         const txRef = data.tx_ref;
+        const meta = data.meta || {};
+        const userId = meta.userId;
+
+        if (!userId) {
+            return res.status(400).json({
+                status: "failed",
+                message: "UserId not found in payment metadata"
+            });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                status: "failed",
+                message: "User not found"
+            });
+        }
 
         // Check if subscription already exists for this transaction
         const existingHistory = await PaymentHistory.findOne({
@@ -425,8 +434,9 @@ export const verifySubscriptionPayment = async (req: Request, res: Response) => 
             });
         }
 
-        // Find the plan based on the amount paid
-        const plan = await Plan.findOne({
+        // Find the plan based on the amount paid or meta planId
+        const planId = meta.planId;
+        const plan = planId ? await Plan.findById(planId) : await Plan.findOne({
             price: data.amount,
             isActive: true
         });
@@ -434,7 +444,7 @@ export const verifySubscriptionPayment = async (req: Request, res: Response) => 
         if (!plan) {
             return res.status(404).json({
                 status: "failed",
-                message: "Plan not found for this payment amount"
+                message: "Plan not found for this payment"
             });
         }
 
@@ -489,7 +499,7 @@ export const verifySubscriptionPayment = async (req: Request, res: Response) => 
 
         // Save payment history
         await savePaymentHistory(
-            user._id.toString(),
+            String(user._id),
             "subscription",
             data.id,
             data.amount,
