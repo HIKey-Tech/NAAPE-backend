@@ -26,6 +26,7 @@ router.post(
 );
 router.get(
     "/subscription/verify",
+    protect,
     verifySubscriptionPayment
 );
 router.get(

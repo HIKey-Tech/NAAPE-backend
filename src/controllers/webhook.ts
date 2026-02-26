@@ -12,7 +12,7 @@ import { Types } from "mongoose";
 
 export const handleWebhook = async (req: Request, res: Response) => {
     try {
-        const signature = req.headers["verify-hash"] as string | undefined;
+        const signature = (req.headers["verif-hash"] || req.headers["verify-hash"]) as string | undefined;
 
         if (!signature || signature !== process.env.FLW_HASH) {
             return res.status(401).send("unauthorised");

@@ -382,10 +382,19 @@ export async function getAllPlans(req: Request, res: Response) {
 export const verifySubscriptionPayment = async (req: Request, res: Response) => {
     try {
         const transaction_id = req.query.transaction_id as string;
+        const user = req.user;
+
         if (!transaction_id) {
             return res.status(400).json({
                 status: "failed",
                 message: "Missing transaction_id"
+            });
+        }
+
+        if (!user) {
+            return res.status(401).json({
+                status: "failed",
+                message: "Unauthorized"
             });
         }
 
@@ -397,23 +406,6 @@ export const verifySubscriptionPayment = async (req: Request, res: Response) => 
             return res.status(400).json({
                 status: "failed",
                 message: "Payment verification failed"
-            });
-        }
-
-        const userId = data.meta?.userId || req.user?._id;
-
-        if (!userId) {
-            return res.status(401).json({
-                status: "failed",
-                message: "Unauthorized - User information missing"
-            });
-        }
-
-        const user = await User.findById(userId);
-        if (!user) {
-            return res.status(404).json({
-                status: "failed",
-                message: "User not found"
             });
         }
 
@@ -497,7 +489,7 @@ export const verifySubscriptionPayment = async (req: Request, res: Response) => 
 
         // Save payment history
         await savePaymentHistory(
-            String(user._id),
+            user._id.toString(),
             "subscription",
             data.id,
             data.amount,
